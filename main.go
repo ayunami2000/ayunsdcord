@@ -1,0 +1,434 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"log"
+	"math/rand"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/diamondburned/arikawa/v3/api"
+	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/diamondburned/arikawa/v3/gateway"
+	"github.com/diamondburned/arikawa/v3/state"
+	"github.com/diamondburned/arikawa/v3/utils/json/option"
+	"github.com/diamondburned/arikawa/v3/utils/sendpart"
+)
+
+var s *state.State
+var botID discord.UserID
+var ctx context.Context
+var inUse bool = false
+var sessionId string = strconv.Itoa(int(time.Now().UnixMilli()))
+var model string = "animemix"
+var vae string = "anything"
+var hypernetwork string = ""
+var prompt string = "cat"
+var negativePrompt string = "nsfw"
+var width int = 768
+var height int = 1280
+
+type Render struct {
+	ActiveTags              []string `json:"active_tags"`
+	GuidanceScale           int      `json:"guidance_scale"`
+	Width                   int      `json:"width"`
+	Height                  int      `json:"height"`
+	NegativePrompt          string   `json:"negative_prompt"`
+	NumInferenceSteps       int      `json:"num_inference_steps"`
+	NumOutputs              int      `json:"num_outputs"`
+	OriginalPrompt          string   `json:"original_prompt"`
+	OutputFormat            string   `json:"output_format"`
+	OutputQuality           int      `json:"output_quality"`
+	Prompt                  string   `json:"prompt"`
+	Sampler                 string   `json:"sampler"`
+	Seed                    int      `json:"seed"`
+	SessionId               string   `json:"session_id"`
+	ShowOnlyFilteredImage   bool     `json:"show_only_filtered_image"`
+	StreamImageProgress     bool     `json:"stream_image_progress"`
+	StreamProgressUpdates   bool     `json:"stream_progress_updates"`
+	Turbo                   bool     `json:"turbo"`
+	UseFullPrecision        bool     `json:"use_full_precision"`
+	UseStableDiffusionModel string   `json:"use_stable_diffusion_model"`
+	UseVaeModel             string   `json:"use_vae_model,omitempty"`
+	UseHypernetworkModel    string   `json:"use_hypernetwork_model,omitempty"`
+}
+
+type RenderResponse struct {
+	Stream string `json:"stream"`
+}
+
+type ModelsResponse struct {
+	Options struct {
+		StableDiffusion []string `json:"stable-diffusion"`
+		VAE             []string `json:"vae"`
+		HyperNetwork    []string `json:"hypernetwork"`
+	} `json:"options"`
+}
+
+type StreamResponse struct {
+	Output []struct {
+		Path string `json:"path,omitempty"`
+		Data string `json:"data,omitempty"`
+	} `json:"output"`
+	Step       int `json:"step,omitempty"`
+	TotalSteps int `json:"total_steps,omitempty"`
+}
+
+var TOKEN = os.Getenv("BOT_TOKEN")
+var SD_URL = os.Getenv("SD_URL")
+var BASIC_AUTH = os.Getenv("BASIC_AUTH")
+var CHANNEL_ID = os.Getenv("CHANNEL_ID")
+var IMAGE_DUMP_CHANNEL_ID_RAW = os.Getenv("IMAGE_DUMP_CHANNEL_ID")
+var IMAGE_DUMP_CHANNEL_ID discord.ChannelID
+
+func Get(url string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if BASIC_AUTH != "" {
+		req.Header.Set("Authorization", "Basic "+BASIC_AUTH)
+	}
+	return http.DefaultClient.Do(req)
+}
+
+func Post(url, contentType string, body io.Reader) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	if BASIC_AUTH != "" {
+		req.Header.Set("Authorization", "Basic "+BASIC_AUTH)
+	}
+	return http.DefaultClient.Do(req)
+}
+
+func reply(channelId discord.ChannelID, referenceId discord.MessageID, message string) (*discord.Message, error) {
+	msg, err := s.SendMessageReply(channelId, message, referenceId)
+	if err != nil {
+		msg, err = s.SendMessage(channelId, message)
+	}
+	return msg, err
+}
+
+func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io.Reader, step int, totalSteps int) (*discord.Message, error) {
+	msg, err := s.SendMessageComplex(IMAGE_DUMP_CHANNEL_ID, api.SendMessageData{
+		Files: []sendpart.File{{
+			Name:   "stable-diffusion_" + strconv.Itoa(int(time.Now().UnixMilli())) + ".png",
+			Reader: reader,
+		}},
+	})
+	if err != nil {
+		s.EditMessage(channelId, referenceId, "failed to upload progress image")
+	} else {
+		footer := "Done!"
+		if step != totalSteps {
+			footer = "Step " + strconv.Itoa(step) + " of " + strconv.Itoa(totalSteps)
+		}
+		s.EditMessageComplex(channelId, referenceId, api.EditMessageData{
+			Content: option.NewNullableString(""),
+			Embeds: &[]discord.Embed{{
+				Title:       "Stable Diffusion",
+				Description: "**Prompt:** " + prompt + "\n**Negative Prompt:** " + negativePrompt + "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model + "\n**VAE:** " + vae + "\n**HyperNetwork:** " + hypernetwork,
+				Footer: &discord.EmbedFooter{
+					Text: footer,
+				},
+				Image: &discord.EmbedImage{
+					URL: msg.Attachments[0].URL,
+				},
+				Timestamp: discord.NewTimestamp(time.Now()),
+			}},
+		})
+	}
+	return msg, err
+}
+
+func messageCreate(c *gateway.MessageCreateEvent) {
+	if c.Author.ID == botID {
+		return
+	}
+
+	if c.ChannelID.String() != CHANNEL_ID {
+		return
+	}
+
+	if !strings.HasPrefix(c.Content, botID.Mention()) {
+		return
+	}
+
+	args := strings.Replace(strings.TrimSpace(strings.TrimPrefix(c.Content, botID.Mention())), "\n", " ", -1)
+	if args == "" {
+		args = "?"
+	}
+
+	if inUse {
+		return
+	}
+	inUse = true
+
+	if err := s.Typing(c.ChannelID); err != nil {
+		log.Println("could not start typing:", err)
+	}
+
+	stoptyping := make(chan struct{})
+	defer close(stoptyping)
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				s.Typing(c.ChannelID)
+			case <-stoptyping:
+				ticker.Stop()
+				inUse = false
+				return
+			}
+		}
+	}()
+
+	cmd := strings.ToLower(strings.Split(args, " ")[0])
+	theRest := strings.TrimSpace(args[len(cmd):])
+
+	if cmd != "render" && cmd != "r" {
+		if cmd == "help" || cmd == "h" || cmd == "?" {
+			reply(c.ChannelID, c.ID, "**Usage:** "+botID.Mention()+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, render, size, help")
+		} else if cmd == "listmodels" || cmd == "lm" {
+			res, err := Get(SD_URL + "/get/models")
+			if err != nil {
+				reply(c.ChannelID, c.ID, "**Error:** Failed to get models!")
+			} else {
+				resParsed := new(ModelsResponse)
+				json.NewDecoder(res.Body).Decode(resParsed)
+				reply(c.ChannelID, c.ID, "**Models:**\n__Stable Diffusion__: "+strings.Join(resParsed.Options.StableDiffusion, ", ")+"\n__VAE__: "+strings.Join(resParsed.Options.VAE, ", ")+"\n__HyperNetwork__: "+strings.Join(resParsed.Options.HyperNetwork, ", "))
+			}
+			defer res.Body.Close()
+		} else if cmd == "model" || cmd == "m" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current model:** "+model)
+			} else {
+				model = theRest
+				reply(c.ChannelID, c.ID, "**Model set to:** "+model)
+			}
+		} else if cmd == "vae" || cmd == "v" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current VAE:** "+vae)
+			} else {
+				vae = theRest
+				reply(c.ChannelID, c.ID, "**VAE set to:** "+vae)
+			}
+		} else if cmd == "hypernetwork" || cmd == "hn" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+hypernetwork)
+			} else {
+				hypernetwork = theRest
+				reply(c.ChannelID, c.ID, "**HyperNetwork set to:** "+hypernetwork)
+			}
+		} else if cmd == "prompt" || cmd == "p" {
+			prompt = theRest
+			reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+		} else if cmd == "negativeprompt" || cmd == "np" {
+			negativePrompt = theRest
+			reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
+		} else if cmd == "size" || cmd == "sz" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
+			} else {
+				if theRest == "0" {
+					width = 768
+					height = 768
+				} else if theRest == "1" {
+					width = 1280
+					height = 768
+				} else if theRest == "2" {
+					width = 768
+					height = 1280
+				} else if theRest == "3" {
+					width = 512
+					height = 512
+				} else if theRest == "4" {
+					width = 896
+					height = 512
+				} else if theRest == "5" {
+					width = 512
+					height = 896
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid size!")
+					return
+				}
+				reply(c.ChannelID, c.ID, "**Size set to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
+			}
+		} else {
+			reply(c.ChannelID, c.ID, "**Error:** Unknown command!")
+		}
+		return
+	}
+
+	body := &Render{
+		ActiveTags:              []string{},
+		GuidanceScale:           12,
+		Width:                   width,
+		Height:                  height,
+		NegativePrompt:          negativePrompt,
+		NumInferenceSteps:       28,
+		NumOutputs:              1,
+		OriginalPrompt:          prompt,
+		OutputFormat:            "png",
+		OutputQuality:           75,
+		Prompt:                  prompt,
+		Sampler:                 "euler_a",
+		Seed:                    rand.Intn(1000000),
+		SessionId:               sessionId,
+		ShowOnlyFilteredImage:   true,
+		StreamImageProgress:     true,
+		StreamProgressUpdates:   true,
+		Turbo:                   true,
+		UseFullPrecision:        true,
+		UseStableDiffusionModel: model,
+		UseVaeModel:             vae,
+		UseHypernetworkModel:    hypernetwork,
+	}
+
+	buf := new(bytes.Buffer)
+	json.NewEncoder(buf).Encode(body)
+	res, err := Post(SD_URL+"/render", "application/json", buf)
+
+	if err != nil {
+		log.Println("could not query stable diffusion ui:", err)
+		reply(c.ChannelID, c.ID, "failed to query stable diffusion ui")
+		return
+	}
+
+	defer res.Body.Close()
+
+	resParsed := new(RenderResponse)
+
+	json.NewDecoder(res.Body).Decode(resParsed)
+
+	msg, err := reply(c.ChannelID, c.ID, "**Loading...**")
+
+	if err != nil {
+		return
+	}
+
+	doneRendering := bool(false)
+
+	lastFrame := new(discord.Message)
+
+	step := 0
+	totalSteps := 28
+
+	for !doneRendering {
+		res, err = Get(SD_URL + resParsed.Stream)
+
+		if err != nil {
+			log.Println("could not query stable diffusion ui:", err)
+			s.EditMessage(c.ChannelID, msg.ID, "failed to query stable diffusion ui")
+			return
+		}
+
+		defer res.Body.Close()
+
+		dec := json.NewDecoder(res.Body)
+
+		for {
+			res2 := new(StreamResponse)
+			if err := dec.Decode(res2); err != nil {
+				if err == io.EOF {
+					break
+				}
+				panic(err)
+			}
+			if res2.Output != nil {
+				if res2.Output[0].Path != "" {
+					res3, err := Get(SD_URL + res2.Output[0].Path)
+					if err != nil {
+						s.EditMessage(c.ChannelID, msg.ID, "failed to parse progress image")
+					} else {
+						defer res3.Body.Close()
+						if lastFrame != nil {
+							s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
+						}
+						f, err := frame(c.ChannelID, msg.ID, res3.Body, step, totalSteps)
+						if err == nil {
+							lastFrame = f
+						}
+					}
+				} else if res2.Output[0].Data != "" {
+					b64body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(res2.Output[0].Data[22:]))
+					if lastFrame != nil {
+						s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
+					}
+					f, err := frame(c.ChannelID, msg.ID, b64body, totalSteps, totalSteps)
+					if err == nil {
+						lastFrame = f
+					}
+					doneRendering = true
+					break
+				}
+			}
+			if res2.Step != 0 {
+				step = res2.Step
+			}
+			if res2.TotalSteps != 0 {
+				totalSteps = res2.TotalSteps
+			}
+		}
+	}
+}
+
+func main() {
+	if TOKEN == "" {
+		log.Fatalln("missing BOT_TOKEN")
+	}
+
+	if CHANNEL_ID == "" {
+		log.Fatalln("missing CHANNEL_ID")
+	}
+
+	if IMAGE_DUMP_CHANNEL_ID_RAW == "" {
+		log.Fatalln("missing IMAGE_DUMP_CHANNEL_ID")
+	}
+
+	i, err := strconv.Atoi(IMAGE_DUMP_CHANNEL_ID_RAW)
+
+	if err != nil {
+		log.Fatalln("Invalid IMAGE_DUMP_CHANNEL_ID")
+	}
+
+	IMAGE_DUMP_CHANNEL_ID = discord.ChannelID(discord.Snowflake(i))
+
+	if SD_URL == "" {
+		SD_URL = "http://localhost:9000"
+	}
+
+	s = state.New("Bot " + TOKEN)
+	s.AddHandler(messageCreate)
+
+	s.AddIntents(gateway.IntentGuildMessages)
+
+	self, err := s.Me()
+	if err != nil {
+		log.Fatalln("Identity crisis:", err)
+	}
+
+	botID = self.ID
+
+	ctx = context.Background()
+
+	if err := s.Open(ctx); err != nil {
+		log.Fatalln("Failed to connect:", err)
+	}
+	defer s.Close()
+
+	log.Println("Started as", self.Username)
+
+	select {}
+}
