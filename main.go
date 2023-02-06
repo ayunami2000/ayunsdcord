@@ -194,6 +194,14 @@ func randomPrompt(args string) (string, error) {
 	return babbler.Babble(), nil
 }
 
+// https://stackoverflow.com/a/59955447/6917520
+func truncateText(s string, max int) string {
+	if max > len(s) {
+		return s
+	}
+	return s[:strings.LastIndexAny(s[:max], " .,:;-")]
+}
+
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
 		return
@@ -254,7 +262,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if err != nil {
 				reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 			} else {
-				prompt = pr
+				prompt = truncateText(pr, 256)
 				reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 			}
 		} else if cmd == "listmodels" || cmd == "lm" {
@@ -357,14 +365,14 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current prompt:** "+prompt)
 			} else {
-				prompt = theRest
+				prompt = truncateText(theRest, 256)
 				reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 			}
 		} else if cmd == "negativeprompt" || cmd == "np" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current negative prompt:** "+negativePrompt)
 			} else {
-				negativePrompt = theRest
+				negativePrompt = truncateText(theRest, 256)
 				reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
 			}
 		} else if cmd == "size" || cmd == "sz" {
@@ -406,11 +414,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		if err != nil {
 			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 		} else {
-			prompt = pr
+			prompt = truncateText(pr, 256)
 			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 		}
 	} else if theRest != "" {
-		prompt = theRest
+		prompt = truncateText(theRest, 256)
 		reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 	}
 
