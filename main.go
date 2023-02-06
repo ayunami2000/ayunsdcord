@@ -71,6 +71,11 @@ type ModelsResponse struct {
 		VAE             []string `json:"vae"`
 		HyperNetwork    []string `json:"hypernetwork"`
 	} `json:"options"`
+	Active struct {
+		StableDiffusion string `json:"stable-diffusion"`
+		VAE             string `json:"vae"`
+		HyperNetwork    string `json:"hypernetwork"`
+	} `json:"active"`
 }
 
 type StreamResponse struct {
@@ -88,6 +93,7 @@ var BASIC_AUTH = os.Getenv("BASIC_AUTH")
 var CHANNEL_ID = os.Getenv("CHANNEL_ID")
 var IMAGE_DUMP_CHANNEL_ID_RAW = os.Getenv("IMAGE_DUMP_CHANNEL_ID")
 var IMAGE_DUMP_CHANNEL_ID discord.ChannelID
+var PREFIX = os.Getenv("PREFIX")
 
 func Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
@@ -152,6 +158,18 @@ func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io
 	return msg, err
 }
 
+func getModels() (*ModelsResponse, error) {
+	res, err := Get(SD_URL + "/get/models")
+	if err != nil {
+		return nil, err
+	} else {
+		defer res.Body.Close()
+		resParsed := new(ModelsResponse)
+		json.NewDecoder(res.Body).Decode(resParsed)
+		return resParsed, nil
+	}
+}
+
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
 		return
@@ -161,11 +179,17 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
-	if !strings.HasPrefix(c.Content, botID.Mention()) {
+	prefix := PREFIX
+
+	if strings.HasPrefix(c.Content, botID.Mention()) {
+		prefix = botID.Mention()
+	}
+
+	if !strings.HasPrefix(strings.ToLower(c.Content), prefix) {
 		return
 	}
 
-	args := strings.Replace(strings.TrimSpace(strings.TrimPrefix(c.Content, botID.Mention())), "\n", " ", -1)
+	args := strings.Replace(strings.TrimSpace(c.Content[len(prefix):]), "\n", " ", -1)
 	if args == "" {
 		args = "?"
 	}
@@ -200,37 +224,82 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 	if cmd != "render" && cmd != "r" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+botID.Mention()+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, render, size, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, render, size, help")
 		} else if cmd == "listmodels" || cmd == "lm" {
-			res, err := Get(SD_URL + "/get/models")
+			res, err := getModels()
 			if err != nil {
 				reply(c.ChannelID, c.ID, "**Error:** Failed to get models!")
 			} else {
-				resParsed := new(ModelsResponse)
-				json.NewDecoder(res.Body).Decode(resParsed)
-				reply(c.ChannelID, c.ID, "**Models:**\n__Stable Diffusion__: "+strings.Join(resParsed.Options.StableDiffusion, ", ")+"\n__VAE__: "+strings.Join(resParsed.Options.VAE, ", ")+"\n__HyperNetwork__: "+strings.Join(resParsed.Options.HyperNetwork, ", "))
+				reply(c.ChannelID, c.ID, "**Models:**\n__Stable Diffusion__: "+strings.Join(res.Options.StableDiffusion, ", ")+"\n__VAE__: "+strings.Join(res.Options.VAE, ", ")+"\n__HyperNetwork__: "+strings.Join(res.Options.HyperNetwork, ", "))
 			}
-			defer res.Body.Close()
 		} else if cmd == "model" || cmd == "m" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current model:** "+model)
 			} else {
-				model = theRest
-				reply(c.ChannelID, c.ID, "**Model set to:** "+model)
+				res, err := getModels()
+				if err != nil {
+					reply(c.ChannelID, c.ID, "**Error:** Failed to check models!")
+				} else {
+					found := false
+					for _, m := range res.Options.StableDiffusion {
+						if strings.EqualFold(m, theRest) {
+							found = true
+							break
+						}
+					}
+					if found {
+						model = theRest
+						reply(c.ChannelID, c.ID, "**Model set to:** "+model)
+					} else {
+						reply(c.ChannelID, c.ID, "**Error:** Invalid model!")
+					}
+				}
 			}
 		} else if cmd == "vae" || cmd == "v" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current VAE:** "+vae)
 			} else {
-				vae = theRest
-				reply(c.ChannelID, c.ID, "**VAE set to:** "+vae)
+				res, err := getModels()
+				if err != nil {
+					reply(c.ChannelID, c.ID, "**Error:** Failed to check models!")
+				} else {
+					found := false
+					for _, m := range res.Options.VAE {
+						if strings.EqualFold(m, theRest) {
+							found = true
+							break
+						}
+					}
+					if found {
+						vae = theRest
+						reply(c.ChannelID, c.ID, "**VAE set to:** "+vae)
+					} else {
+						reply(c.ChannelID, c.ID, "**Error:** Invalid VAE!")
+					}
+				}
 			}
 		} else if cmd == "hypernetwork" || cmd == "hn" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+hypernetwork)
 			} else {
-				hypernetwork = theRest
-				reply(c.ChannelID, c.ID, "**HyperNetwork set to:** "+hypernetwork)
+				res, err := getModels()
+				if err != nil {
+					reply(c.ChannelID, c.ID, "**Error:** Failed to check models!")
+				} else {
+					found := false
+					for _, m := range res.Options.HyperNetwork {
+						if strings.EqualFold(m, theRest) {
+							found = true
+							break
+						}
+					}
+					if found {
+						hypernetwork = theRest
+						reply(c.ChannelID, c.ID, "**HyperNetwork set to:** "+hypernetwork)
+					} else {
+						reply(c.ChannelID, c.ID, "**Error:** Invalid HyperNetwork!")
+					}
+				}
 			}
 		} else if cmd == "prompt" || cmd == "p" {
 			prompt = theRest
@@ -408,6 +477,19 @@ func main() {
 
 	if SD_URL == "" {
 		SD_URL = "http://localhost:9000"
+	}
+
+	if PREFIX == "" {
+		PREFIX = "sd!"
+	}
+
+	res, err := getModels()
+	if err != nil {
+		log.Fatalln("Failed to get models!")
+	} else {
+		model = res.Active.StableDiffusion
+		vae = res.Active.VAE
+		hypernetwork = res.Active.HyperNetwork
 	}
 
 	s = state.New("Bot " + TOKEN)
