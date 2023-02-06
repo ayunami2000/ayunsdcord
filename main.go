@@ -621,6 +621,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 		dec := json.NewDecoder(res.Body)
 
+		didOnce := false
+
 		for {
 			res2 := new(StreamResponse)
 			if err := dec.Decode(res2); err != nil {
@@ -628,6 +630,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					break
 				}
 				panic(err)
+			}
+			if !didOnce {
+				didOnce = true
 			}
 			stepGoUp := res2.Step > step
 			step = res2.Step
@@ -686,7 +691,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 		res.Body.Close()
 
-		time.Sleep(500 * time.Millisecond)
+		if !didOnce {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 }
 
