@@ -326,14 +326,18 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			}
 		} else if cmd == "prompt" || cmd == "p" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current Prompt:** "+prompt)
+				reply(c.ChannelID, c.ID, "**Current prompt:** "+prompt)
 			} else {
 				prompt = theRest
 				reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 			}
 		} else if cmd == "negativeprompt" || cmd == "np" {
-			negativePrompt = theRest
-			reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current negative prompt:** "+negativePrompt)
+			} else {
+				negativePrompt = theRest
+				reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
+			}
 		} else if cmd == "size" || cmd == "sz" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
