@@ -25,24 +25,25 @@ import (
 )
 
 type Config struct {
-	BotToken                    string `json:"bot_token,omitempty"`
-	StableDiffusionURL          string `json:"sd_url,omitempty"`
-	BasicAuth                   string `json:"basic_auth,omitempty"`
-	ChannelId                   string `json:"channel_id,omitempty"`
-	ImageDumpChannelId          string `json:"image_dump_channel_id,omitempty"`
-	Prefix                      string `json:"prefix,omitempty"`
-	FrameUrl                    string `json:"frame_url,omitempty"`
-	FrameHttpPort               int    `json:"frame_http_port,omitempty"`
-	AllowBots                   bool   `json:"allow_bots,omitempty"`
-	DefaultPrompt               string `json:"default_prompt,omitempty"`
-	DefaultNegativePrompt       string `json:"default_negative_prompt,omitempty"`
-	DefaultWidth                int    `json:"default_width,omitempty"`
-	DefaultHeight               int    `json:"default_height,omitempty"`
-	AllowChangingNegativePrompt bool   `json:"allow_changing_negative_prompt,omitempty"`
-	StreamImageProgress         bool   `json:"stream_image_progress,omitempty"`
-	LoadingFrameUrl             string `json:"loading_frame_url,omitempty"`
-	ErrorFrameUrl               string `json:"error_frame_url,omitempty"`
-	CountFrameless              bool   `json:"count_frameless,omitempty"`
+	BotToken                    string  `json:"bot_token,omitempty"`
+	StableDiffusionURL          string  `json:"sd_url,omitempty"`
+	BasicAuth                   string  `json:"basic_auth,omitempty"`
+	ChannelId                   string  `json:"channel_id,omitempty"`
+	ImageDumpChannelId          string  `json:"image_dump_channel_id,omitempty"`
+	Prefix                      string  `json:"prefix,omitempty"`
+	FrameUrl                    string  `json:"frame_url,omitempty"`
+	FrameHttpPort               int     `json:"frame_http_port,omitempty"`
+	AllowBots                   bool    `json:"allow_bots,omitempty"`
+	DefaultPrompt               string  `json:"default_prompt,omitempty"`
+	DefaultNegativePrompt       string  `json:"default_negative_prompt,omitempty"`
+	DefaultWidth                int     `json:"default_width,omitempty"`
+	DefaultHeight               int     `json:"default_height,omitempty"`
+	AllowChangingNegativePrompt bool    `json:"allow_changing_negative_prompt,omitempty"`
+	StreamImageProgress         bool    `json:"stream_image_progress,omitempty"`
+	LoadingFrameUrl             string  `json:"loading_frame_url,omitempty"`
+	ErrorFrameUrl               string  `json:"error_frame_url,omitempty"`
+	CountFrameless              bool    `json:"count_frameless,omitempty"`
+	DefaultPromptStrength       float64 `json:"default_prompt_strength,omitempty"`
 }
 
 type UsersList struct {
@@ -74,6 +75,8 @@ type Render struct {
 	InactiveTags            []string `json:"inactive_tags"`
 	SamplerName             string   `json:"sampler_name"`
 	SessionId               string   `json:"session_id"`
+	InitImage               string   `json:"init_image,omitempty"`
+	PromptStrength          float64  `json:"prompt_strength,omitempty"`
 }
 
 type RenderResponse struct {
@@ -130,6 +133,18 @@ func parseInt(str string) int {
 	return i
 }
 
+func parseFloat(str string) float64 {
+	f, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		log.Fatalf("Error parsing float: %v", err)
+	}
+	return f
+}
+
+func floatToStr(f float64) string {
+	return strconv.FormatFloat(f, 'g', 6, 64)
+}
+
 var config = Config{
 	BotToken:                    getEnv("BOT_TOKEN", ""),
 	StableDiffusionURL:          getEnv("SD_URL", "http://localhost:9000"),
@@ -149,6 +164,7 @@ var config = Config{
 	LoadingFrameUrl:             getEnv("LOADING_FRAME_URL", "https://c.tenor.com/RVvnVPK-6dcAAAAC/reload-cat.gif"),
 	ErrorFrameUrl:               getEnv("ERROR_FRAME_URL", "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png"),
 	CountFrameless:              parseBool(getEnv("COUNT_FRAMELESS", "false")),
+	DefaultPromptStrength:       parseFloat(getEnv("DEFAULT_PROMPT_STRENGTH", "0.8")),
 }
 
 var usersList = UsersList{
@@ -172,6 +188,7 @@ var prompt string = config.DefaultPrompt
 var negativePrompt string = config.DefaultNegativePrompt
 var width int = config.DefaultWidth
 var height int = config.DefaultHeight
+var promptStrength float64 = config.DefaultPromptStrength
 var babbler babble.Babbler
 var frameData []byte
 var imageDumpChannelId discord.ChannelID
@@ -208,14 +225,14 @@ func reply(channelId discord.ChannelID, referenceId discord.MessageID, message s
 	return msg, err
 }
 
-func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io.Reader, step int, totalSteps int) (*discord.Message, error) {
+func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io.Reader, step int, totalSteps int, hasInitImage bool) (*discord.Message, error) {
 	if reader == nil {
-		frameEmbed(channelId, referenceId, "", step, totalSteps)
+		frameEmbed(channelId, referenceId, "", step, totalSteps, hasInitImage)
 		return nil, nil
 	}
 	if config.FrameUrl != "" && step != totalSteps {
 		frameData, _ = io.ReadAll(reader)
-		frameEmbed(channelId, referenceId, config.FrameUrl, step, totalSteps)
+		frameEmbed(channelId, referenceId, config.FrameUrl, step, totalSteps, hasInitImage)
 		return nil, nil
 	}
 	dumpChannel := channelId
@@ -231,12 +248,12 @@ func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io
 	if err != nil {
 		s.EditMessage(channelId, referenceId, "failed to upload progress image")
 	} else {
-		frameEmbed(channelId, referenceId, msg.Attachments[0].URL, step, totalSteps)
+		frameEmbed(channelId, referenceId, msg.Attachments[0].URL, step, totalSteps, hasInitImage)
 	}
 	return msg, err
 }
 
-func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url string, step int, totalSteps int) {
+func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url string, step int, totalSteps int, hasInitImage bool) {
 	footer := "Done!"
 	if step == 0 && totalSteps == 0 {
 		footer = "Error."
@@ -247,11 +264,25 @@ func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url 
 	if url != "" {
 		lastFrameUrl = url
 	}
+	desc := "**Prompt:** " + prompt
+	if negativePrompt != "" {
+		desc += "\n**Negative Prompt:** " + negativePrompt
+	}
+	desc += "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model
+	if vae != "" {
+		desc += "\n**VAE:** " + vae
+	}
+	if hypernetwork != "" {
+		desc += "\n**HyperNetwork:** " + hypernetwork
+	}
+	if hasInitImage {
+		desc += "\n**Img2Img Prompt Strength:** " + floatToStr(promptStrength)
+	}
 	s.EditMessageComplex(channelId, referenceId, api.EditMessageData{
 		Content: option.NewNullableString(""),
 		Embeds: &[]discord.Embed{{
 			Title:       "Stable Diffusion",
-			Description: "**Prompt:** " + prompt + "\n**Negative Prompt:** " + negativePrompt + "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model + "\n**VAE:** " + vae + "\n**HyperNetwork:** " + hypernetwork,
+			Description: desc,
 			Footer: &discord.EmbedFooter{
 				Text: footer,
 			},
@@ -374,7 +405,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 	if cmd != "render" && cmd != "r" && cmd != "randomrender" && cmd != "rr" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, random, randomrender, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, promptstrength, random, randomrender, help")
 		} else if cmd == "random" || cmd == "rand" {
 			pr, err := randomPrompt(theRest)
 			if err != nil {
@@ -392,7 +423,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			}
 		} else if cmd == "clear" || cmd == "cl" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Error:** Please specify which parameter to clear: prompt, negativeprompt, model, vae, hypernetwork")
+				reply(c.ChannelID, c.ID, "**Error:** Please specify which parameter to clear/reset: prompt, negativeprompt, model, vae, hypernetwork, size, promptstrength")
 			} else if strings.EqualFold(theRest, "prompt") || strings.EqualFold(theRest, "p") {
 				prompt = ""
 				reply(c.ChannelID, c.ID, "**Cleared the prompt!**")
@@ -405,6 +436,13 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				}
 			} else if strings.EqualFold(theRest, "model") || strings.EqualFold(theRest, "m") {
 				reply(c.ChannelID, c.ID, "**Error:** The Model cannot be cleared!")
+			} else if strings.EqualFold(theRest, "promptstrength") || strings.EqualFold(theRest, "ps") {
+				promptStrength = config.DefaultPromptStrength
+				reply(c.ChannelID, c.ID, "**Reset the Img2Img prompt strength to:** "+floatToStr(promptStrength))
+			} else if strings.EqualFold(theRest, "size") || strings.EqualFold(theRest, "sz") {
+				width = config.DefaultWidth
+				height = config.DefaultHeight
+				reply(c.ChannelID, c.ID, "**Reset the size to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
 			} else if strings.EqualFold(theRest, "vae") || strings.EqualFold(theRest, "v") {
 				vae = ""
 				reply(c.ChannelID, c.ID, "**Cleared the VAE!**")
@@ -501,6 +539,22 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					reply(c.ChannelID, c.ID, "**Error:** Changing the negative prompt is disabled!")
 				}
 			}
+		} else if cmd == "promptstrength" || cmd == "ps" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current Img2Img prompt strength:** "+floatToStr(promptStrength))
+			} else {
+				if f, err := strconv.ParseFloat(theRest, 64); err == nil {
+					if f < 0 {
+						f = 0
+					} else if f > 0.999999 {
+						f = 0.999999
+					}
+					promptStrength = f
+					reply(c.ChannelID, c.ID, "**Img2Img prompt strength set to:** "+floatToStr(promptStrength))
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid Img2Img prompt strength!")
+				}
+			}
 		} else if cmd == "size" || cmd == "sz" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
@@ -574,13 +628,39 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		SessionId:               sessionId,
 	}
 
+	if len(c.Attachments) > 0 && strings.HasPrefix(c.Attachments[0].ContentType, "image/") {
+		res, err := http.Get(c.Attachments[0].URL)
+		if err == nil {
+			img, _ := io.ReadAll(res.Body)
+			body.InitImage = "data:" + c.Attachments[0].ContentType + ";base64," + base64.StdEncoding.EncodeToString(img)
+			body.PromptStrength = promptStrength
+			res.Body.Close()
+			reply(c.ChannelID, c.ID, "**Loaded Img2Img image from attachment!**")
+			if c.Attachments[0].Description != "" {
+				if f, err := strconv.ParseFloat(c.Attachments[0].Description, 64); err == nil {
+					if f < 0 {
+						f = 0
+					} else if f > 0.999999 {
+						f = 0.999999
+					}
+					promptStrength = f
+					reply(c.ChannelID, c.ID, "**Loaded Img2Img prompt strength from alt text:** "+floatToStr(promptStrength))
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid Img2Img prompt strength in alt text!")
+				}
+			}
+		} else {
+			reply(c.ChannelID, c.ID, "**Error:** Failed to download image for Img2Img!")
+		}
+	}
+
 	buf := new(bytes.Buffer)
 	json.NewEncoder(buf).Encode(body)
 	res, err := Post(config.StableDiffusionURL+"/render", "application/json", buf)
 
 	if err != nil {
-		log.Println("could not query stable diffusion ui:", err)
-		reply(c.ChannelID, c.ID, "failed to query stable diffusion ui")
+		log.Println("Could not query stable diffusion ui:", err)
+		reply(c.ChannelID, c.ID, "Failed to query stable diffusion ui")
 		return
 	}
 
@@ -653,7 +733,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 							s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
 							lastFrame = nil
 						}
-						f, err := frame(c.ChannelID, msg.ID, res3.Body, step, totalSteps)
+						f, err := frame(c.ChannelID, msg.ID, res3.Body, step, totalSteps, body.InitImage != "")
 						if err == nil {
 							lastFrame = f
 						}
@@ -665,7 +745,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						lastFrame = nil
 					}
 					b64body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(res2.Output[0].Data[22:]))
-					f, err := frame(c.ChannelID, msg.ID, b64body, totalSteps, totalSteps)
+					f, err := frame(c.ChannelID, msg.ID, b64body, totalSteps, totalSteps, body.InitImage != "")
 					if err == nil {
 						lastFrame = f
 					}
@@ -677,7 +757,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
 					lastFrame = nil
 				}
-				frameEmbed(c.ChannelID, msg.ID, config.ErrorFrameUrl, 0, 0)
+				frameEmbed(c.ChannelID, msg.ID, config.ErrorFrameUrl, 0, 0, body.InitImage != "")
 				doneRendering = true
 				break
 			} else if config.CountFrameless && stepGoUp {
@@ -685,7 +765,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					stillTyping = false
 					stoptyping <- struct{}{}
 				}
-				frame(c.ChannelID, msg.ID, nil, step, totalSteps)
+				frame(c.ChannelID, msg.ID, nil, step, totalSteps, body.InitImage != "")
 			}
 		}
 
@@ -718,6 +798,7 @@ func main() {
 	negativePrompt = config.DefaultNegativePrompt
 	width = config.DefaultWidth
 	height = config.DefaultHeight
+	promptStrength = config.DefaultPromptStrength
 	loadJson("users.json", &usersList)
 
 	if config.BotToken == "" {
