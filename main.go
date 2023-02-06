@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -604,7 +603,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	lastFrame := new(discord.Message)
 	lastFrameUrl = config.LoadingFrameUrl
 
-	step := 0
+	step := -1
 	totalSteps := 28
 
 	stillTyping := true
@@ -669,16 +668,14 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				frameEmbed(c.ChannelID, msg.ID, config.ErrorFrameUrl, 0, 0)
 				doneRendering = true
 				break
-			} else if res2.Step == 0 || res2.Step > step {
+			} else if res2.Step > step {
 				if stillTyping {
 					stillTyping = false
 					stoptyping <- struct{}{}
 				}
 				frame(c.ChannelID, msg.ID, nil, step, totalSteps)
 			}
-			if res2.Step != 0 /*&& res2.Step > step+2*/ {
-				step = res2.Step
-			}
+			step = res2.Step
 			if res2.TotalSteps != 0 {
 				totalSteps = res2.TotalSteps
 			}
@@ -689,7 +686,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 }
 
 func loadJson(path string, v interface{}) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 
 	if err != nil {
 		log.Printf("Cannot load json: %v", err)
