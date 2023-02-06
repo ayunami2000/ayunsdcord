@@ -692,7 +692,7 @@ func loadJson(path string, v interface{}) {
 	data, err := ioutil.ReadFile(path)
 
 	if err != nil {
-		log.Printf("Cannot load config: %v", err)
+		log.Printf("Cannot load json: %v", err)
 		return
 	}
 
