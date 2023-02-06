@@ -183,6 +183,11 @@ func randomPrompt(args string) (string, error) {
 		if err != nil {
 			return "", err
 		} else {
+			if i < 1 {
+				i = 1
+			} else if i > 100 {
+				i = 100
+			}
 			babbler.Count = i
 		}
 	}
@@ -397,7 +402,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	}
 
 	if cmd == "randomrender" || cmd == "rr" {
-		pr, err := randomPrompt("")
+		pr, err := randomPrompt(theRest[len(cmd)+1:])
 		if err != nil {
 			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 		} else {
