@@ -627,6 +627,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				}
 				panic(err)
 			}
+			stepGoUp := res2.Step > step
 			step = res2.Step
 			if res2.TotalSteps != 0 {
 				totalSteps = res2.TotalSteps
@@ -672,7 +673,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				frameEmbed(c.ChannelID, msg.ID, config.ErrorFrameUrl, 0, 0)
 				doneRendering = true
 				break
-			} else if res2.Step > step {
+			} else if stepGoUp {
 				if stillTyping {
 					stillTyping = false
 					stoptyping <- struct{}{}
