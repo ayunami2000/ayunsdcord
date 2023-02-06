@@ -35,7 +35,7 @@ var hypernetwork string = ""
 var prompt string = "cat"
 var negativePrompt string = "nsfw"
 var width int = 768
-var height int = 1280
+var height int = 768
 var babbler babble.Babbler
 
 type Render struct {
