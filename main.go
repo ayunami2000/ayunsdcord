@@ -742,7 +742,7 @@ func main() {
 		res.Body.Close()
 	}
 
-	s = state.New("Bot " + config.Token)
+	s = state.New("Bot " + config.BotToken)
 	s.AddHandler(messageCreate)
 
 	s.AddIntents(gateway.IntentGuildMessages)
