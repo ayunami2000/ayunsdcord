@@ -627,6 +627,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				}
 				panic(err)
 			}
+			step = res2.Step
+			totalSteps = res2.TotalSteps
 			if res2.Output != nil {
 				if stillTyping {
 					stillTyping = false
@@ -674,10 +676,6 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					stoptyping <- struct{}{}
 				}
 				frame(c.ChannelID, msg.ID, nil, step, totalSteps)
-			}
-			step = res2.Step
-			if res2.TotalSteps != 0 {
-				totalSteps = res2.TotalSteps
 			}
 		}
 
