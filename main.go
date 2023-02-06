@@ -705,6 +705,10 @@ func loadJson(path string, v interface{}) {
 
 func main() {
 	loadJson("config.json", &config)
+	prompt = config.DefaultPrompt
+	negativePrompt = config.DefaultNegativePrompt
+	width = config.DefaultWidth
+	height = config.DefaultHeight
 	loadJson("users.json", &usersList)
 
 	if config.BotToken == "" {
