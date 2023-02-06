@@ -657,8 +657,6 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		Height:                  height,
 		VramUsageLevel:          "high",
 		UseStableDiffusionModel: model,
-		UseVaeModel:             vae,
-		UseHypernetworkModel:    hypernetwork,
 		StreamProgressUpdates:   true,
 		StreamImageProgress:     config.StreamImageProgress,
 		ShowOnlyFilteredImage:   true,
@@ -670,6 +668,13 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		InactiveTags:            []string{},
 		SamplerName:             "euler_a", // dpmpp_2m
 		SessionId:               sessionId,
+	}
+
+	if vae != "" {
+		body.UseVaeModel = vae
+	}
+	if hypernetwork != "" {
+		body.UseHypernetworkModel = hypernetwork
 	}
 
 	if len(c.Attachments) > 0 && strings.HasPrefix(c.Attachments[0].ContentType, "image/") {
