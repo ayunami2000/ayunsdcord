@@ -38,6 +38,8 @@ type Config struct {
 	DefaultNegativePrompt       string  `json:"default_negative_prompt,omitempty"`
 	DefaultWidth                int     `json:"default_width,omitempty"`
 	DefaultHeight               int     `json:"default_height,omitempty"`
+	DefaultInferenceSteps       int     `json:"default_inference_steps,omitempty"`
+	DefaultGuidanceScale        float64 `json:"default_guidance_scale,omitempty"`
 	AllowChangingNegativePrompt bool    `json:"allow_changing_negative_prompt,omitempty"`
 	StreamImageProgress         bool    `json:"stream_image_progress,omitempty"`
 	LoadingFrameUrl             string  `json:"loading_frame_url,omitempty"`
@@ -57,7 +59,7 @@ type Render struct {
 	NegativePrompt          string   `json:"negative_prompt"`
 	NumOutputs              int      `json:"num_outputs"`
 	NumInferenceSteps       int      `json:"num_inference_steps"`
-	GuidanceScale           int      `json:"guidance_scale"`
+	GuidanceScale           float64  `json:"guidance_scale"`
 	Width                   int      `json:"width"`
 	Height                  int      `json:"height"`
 	VramUsageLevel          string   `json:"vram_usage_level"`
@@ -165,6 +167,8 @@ var config = Config{
 	ErrorFrameUrl:               getEnv("ERROR_FRAME_URL", "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png"),
 	CountFrameless:              parseBool(getEnv("COUNT_FRAMELESS", "false")),
 	DefaultPromptStrength:       parseFloat(getEnv("DEFAULT_PROMPT_STRENGTH", "0.8")),
+	DefaultInferenceSteps:       parseInt(getEnv("DEFAULT_INFERENCE_STEPS", "28")),
+	DefaultGuidanceScale:        parseFloat(getEnv("DEFAULT_GUIDANCE_SCALE", "12.0")),
 }
 
 var usersList = UsersList{
@@ -189,6 +193,8 @@ var negativePrompt string = config.DefaultNegativePrompt
 var width int = config.DefaultWidth
 var height int = config.DefaultHeight
 var promptStrength float64 = config.DefaultPromptStrength
+var inferenceSteps int = config.DefaultInferenceSteps
+var guidanceScale float64 = config.DefaultGuidanceScale
 var babbler babble.Babbler
 var frameData []byte
 var imageDumpChannelId discord.ChannelID
@@ -268,7 +274,7 @@ func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url 
 	if negativePrompt != "" {
 		desc += "\n**Negative Prompt:** " + negativePrompt
 	}
-	desc += "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model
+	desc += "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Inference Steps:** " + strconv.Itoa(inferenceSteps) + "\n**Guidance Scale:** " + floatToStr(guidanceScale) + "\n**Model:** " + model
 	if vae != "" {
 		desc += "\n**VAE:** " + vae
 	}
@@ -405,7 +411,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 	if cmd != "render" && cmd != "r" && cmd != "randomrender" && cmd != "rr" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, promptstrength, random, randomrender, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, promptstrength, inferencesteps, guidancescale, random, randomrender, help")
 		} else if cmd == "random" || cmd == "rand" {
 			pr, err := randomPrompt(theRest)
 			if err != nil {
@@ -439,6 +445,12 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			} else if strings.EqualFold(theRest, "promptstrength") || strings.EqualFold(theRest, "ps") {
 				promptStrength = config.DefaultPromptStrength
 				reply(c.ChannelID, c.ID, "**Reset the Img2Img prompt strength to:** "+floatToStr(promptStrength))
+			} else if strings.EqualFold(theRest, "inferencesteps") || strings.EqualFold(theRest, "is") {
+				inferenceSteps = config.DefaultInferenceSteps
+				reply(c.ChannelID, c.ID, "**Reset the inference steps to:** "+strconv.Itoa(inferenceSteps))
+			} else if strings.EqualFold(theRest, "guidancescale") || strings.EqualFold(theRest, "gs") {
+				guidanceScale = config.DefaultGuidanceScale
+				reply(c.ChannelID, c.ID, "**Reset the guidance scale to:** "+floatToStr(guidanceScale))
 			} else if strings.EqualFold(theRest, "size") || strings.EqualFold(theRest, "sz") {
 				width = config.DefaultWidth
 				height = config.DefaultHeight
@@ -555,6 +567,38 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					reply(c.ChannelID, c.ID, "**Error:** Invalid Img2Img prompt strength!")
 				}
 			}
+		} else if cmd == "inferencesteps" || cmd == "is" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current inference steps:** "+floatToStr(float64(inferenceSteps)))
+			} else {
+				if i, err := strconv.Atoi(theRest); err == nil {
+					if i < 1 {
+						i = 1
+					} else if i > 100 {
+						i = 100
+					}
+					inferenceSteps = i
+					reply(c.ChannelID, c.ID, "**Inference steps set to:** "+strconv.Itoa(inferenceSteps))
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid inference steps!")
+				}
+			}
+		} else if cmd == "guidancescale" || cmd == "gs" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current guidance scale:** "+floatToStr(guidanceScale))
+			} else {
+				if f, err := strconv.ParseFloat(theRest, 64); err == nil {
+					if f < 1.1 {
+						f = 1.1
+					} else if f > 50 {
+						f = 50
+					}
+					guidanceScale = f
+					reply(c.ChannelID, c.ID, "**Guidance scale set to:** "+floatToStr(guidanceScale))
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid guidance scale!")
+				}
+			}
 		} else if cmd == "size" || cmd == "sz" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
@@ -607,8 +651,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		Seed:                    rand.Intn(1000000),
 		NegativePrompt:          negativePrompt,
 		NumOutputs:              1,
-		NumInferenceSteps:       28,
-		GuidanceScale:           12,
+		NumInferenceSteps:       inferenceSteps,
+		GuidanceScale:           guidanceScale,
 		Width:                   width,
 		Height:                  height,
 		VramUsageLevel:          "high",
@@ -799,6 +843,8 @@ func main() {
 	width = config.DefaultWidth
 	height = config.DefaultHeight
 	promptStrength = config.DefaultPromptStrength
+	inferenceSteps = config.DefaultInferenceSteps
+	guidanceScale = config.DefaultGuidanceScale
 	loadJson("users.json", &usersList)
 
 	if config.BotToken == "" {
