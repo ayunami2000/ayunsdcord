@@ -71,11 +71,14 @@ type ModelsResponse struct {
 		VAE             []string `json:"vae"`
 		HyperNetwork    []string `json:"hypernetwork"`
 	} `json:"options"`
-	Active struct {
+}
+
+type AppConfigResponse struct {
+	Model struct {
 		StableDiffusion string `json:"stable-diffusion"`
-		VAE             string `json:"vae"`
-		HyperNetwork    string `json:"hypernetwork"`
-	} `json:"active"`
+		VAE             string `json:"vae,omitempty"`
+		HyperNetwork    string `json:"hypernetwork,omitempty"`
+	} `json:"model"`
 }
 
 type StreamResponse struct {
@@ -507,13 +510,16 @@ func main() {
 		PREFIX = "sd!"
 	}
 
-	res, err := getModels()
+	res, err := Get(SD_URL + "/get/app_config")
 	if err != nil {
-		log.Fatalln("Failed to get models!")
+		log.Fatalln("Failed to get active models!")
 	} else {
-		model = res.Active.StableDiffusion
-		vae = res.Active.VAE
-		hypernetwork = res.Active.HyperNetwork
+		defer res.Body.Close()
+		resParsed := new(AppConfigResponse)
+		json.NewDecoder(res.Body).Decode(resParsed)
+		model = resParsed.Model.StableDiffusion
+		vae = resParsed.Model.VAE
+		hypernetwork = resParsed.Model.HyperNetwork
 	}
 
 	s = state.New("Bot " + TOKEN)
