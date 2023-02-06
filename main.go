@@ -224,7 +224,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 	if cmd != "render" && cmd != "r" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, render, size, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, help")
 		} else if cmd == "listmodels" || cmd == "lm" {
 			res, err := getModels()
 			if err != nil {
@@ -232,9 +232,29 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			} else {
 				reply(c.ChannelID, c.ID, "**Models:**\n__Stable Diffusion__: "+strings.Join(res.Options.StableDiffusion, ", ")+"\n__VAE__: "+strings.Join(res.Options.VAE, ", ")+"\n__HyperNetwork__: "+strings.Join(res.Options.HyperNetwork, ", "))
 			}
+		} else if cmd == "clear" || cmd == "cl" {
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Error:** Please specify which parameter to clear: prompt, negativeprompt, model, vae, hypernetwork")
+			} else if strings.EqualFold(theRest, "prompt") || strings.EqualFold(theRest, "p") {
+				prompt = ""
+				reply(c.ChannelID, c.ID, "**Cleared the prompt!**")
+			} else if strings.EqualFold(theRest, "negativeprompt") || strings.EqualFold(theRest, "np") {
+				negativePrompt = ""
+				reply(c.ChannelID, c.ID, "**Cleared the negative prompt!**")
+			} else if strings.EqualFold(theRest, "model") || strings.EqualFold(theRest, "m") {
+				reply(c.ChannelID, c.ID, "**Error:** The Model cannot be cleared!")
+			} else if strings.EqualFold(theRest, "vae") || strings.EqualFold(theRest, "v") {
+				vae = ""
+				reply(c.ChannelID, c.ID, "**Cleared the VAE!**")
+			} else if strings.EqualFold(theRest, "hypernetwork") || strings.EqualFold(theRest, "hypnet") || strings.EqualFold(theRest, "hn") {
+				hypernetwork = ""
+				reply(c.ChannelID, c.ID, "**Cleared the HyperNetwork!**")
+			} else {
+				reply(c.ChannelID, c.ID, "**Error:** Invalid parameter to clear!")
+			}
 		} else if cmd == "model" || cmd == "m" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current model:** "+model)
+				reply(c.ChannelID, c.ID, "**Current Model:** "+model)
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -258,9 +278,6 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		} else if cmd == "vae" || cmd == "v" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current VAE:** "+vae)
-			} else if strings.EqualFold(theRest, "none") {
-				vae = ""
-				reply(c.ChannelID, c.ID, "**VAE has been cleared!**")
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -281,12 +298,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					}
 				}
 			}
-		} else if cmd == "hypernetwork" || cmd == "hn" {
+		} else if cmd == "hypernetwork" || cmd == "hypnet" || cmd == "hn" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+hypernetwork)
-			} else if strings.EqualFold(theRest, "none") {
-				hypernetwork = ""
-				reply(c.ChannelID, c.ID, "**HyperNetwork has been cleared!**")
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -308,8 +322,12 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				}
 			}
 		} else if cmd == "prompt" || cmd == "p" {
-			prompt = theRest
-			reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+			if theRest == "" {
+				reply(c.ChannelID, c.ID, "**Current Prompt:** "+prompt)
+			} else {
+				prompt = theRest
+				reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+			}
 		} else if cmd == "negativeprompt" || cmd == "np" {
 			negativePrompt = theRest
 			reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
