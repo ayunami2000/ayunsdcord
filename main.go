@@ -175,6 +175,20 @@ func getModels() (*ModelsResponse, error) {
 	}
 }
 
+func randomPrompt(args string) (string, error) {
+	if args == "" {
+		babbler.Count = 10
+	} else {
+		i, err := strconv.Atoi(args)
+		if err != nil {
+			return "", err
+		} else {
+			babbler.Count = i
+		}
+	}
+	return babbler.Babble(), nil
+}
+
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
 		return
@@ -227,23 +241,17 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	cmd := strings.ToLower(strings.Split(args, " ")[0])
 	theRest := strings.TrimSpace(args[len(cmd):])
 
-	if cmd != "render" && cmd != "r" {
+	if cmd != "render" && cmd != "r" && cmd != "randomrender" && cmd != "rr" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, random, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, random, randomrender, help")
 		} else if cmd == "random" || cmd == "rand" {
-			if theRest == "" {
-				babbler.Count = 10
+			pr, err := randomPrompt(theRest)
+			if err != nil {
+				reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 			} else {
-				i, err := strconv.Atoi(theRest)
-				if err != nil {
-					reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
-					return
-				} else {
-					babbler.Count = i
-				}
+				prompt = pr
+				reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 			}
-			prompt = babbler.Babble()
-			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 		} else if cmd == "listmodels" || cmd == "lm" {
 			res, err := getModels()
 			if err != nil {
@@ -388,7 +396,15 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
-	if theRest != "" {
+	if cmd == "randomrender" || cmd == "rr" {
+		pr, err := randomPrompt("")
+		if err != nil {
+			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
+		} else {
+			prompt = pr
+			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
+		}
+	} else if theRest != "" {
 		prompt = theRest
 		reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 	}
