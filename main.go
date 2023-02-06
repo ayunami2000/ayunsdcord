@@ -685,6 +685,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		}
 
 		res.Body.Close()
+
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
