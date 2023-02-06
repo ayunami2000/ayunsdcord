@@ -262,7 +262,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if err != nil {
 				reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 			} else {
-				prompt = truncateText(pr, 256)
+				prompt = truncateText(pr, 512)
 				reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 			}
 		} else if cmd == "listmodels" || cmd == "lm" {
@@ -365,14 +365,14 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current prompt:** "+prompt)
 			} else {
-				prompt = truncateText(theRest, 256)
+				prompt = truncateText(theRest, 512)
 				reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 			}
 		} else if cmd == "negativeprompt" || cmd == "np" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current negative prompt:** "+negativePrompt)
 			} else {
-				negativePrompt = truncateText(theRest, 256)
+				negativePrompt = truncateText(theRest, 512)
 				reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
 			}
 		} else if cmd == "size" || cmd == "sz" {
@@ -414,11 +414,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		if err != nil {
 			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 		} else {
-			prompt = truncateText(pr, 256)
+			prompt = truncateText(pr, 512)
 			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 		}
 	} else if theRest != "" {
-		prompt = truncateText(theRest, 256)
+		prompt = truncateText(theRest, 512)
 		reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
 	}
 
