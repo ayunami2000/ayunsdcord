@@ -402,7 +402,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	}
 
 	if cmd == "randomrender" || cmd == "rr" {
-		pr, err := randomPrompt(theRest[len(cmd)+1:])
+		pr, err := randomPrompt(theRest)
 		if err != nil {
 			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 		} else {
