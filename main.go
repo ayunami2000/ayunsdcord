@@ -372,6 +372,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
+	if theRest != "" {
+		prompt = theRest
+		reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+	}
+
 	body := &Render{
 		ActiveTags:              []string{},
 		GuidanceScale:           12,
