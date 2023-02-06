@@ -39,28 +39,29 @@ var height int = 768
 var babbler babble.Babbler
 
 type Render struct {
-	ActiveTags              []string `json:"active_tags"`
+	Prompt                  string   `json:"prompt"`
+	Seed                    int      `json:"seed"`
+	NegativePrompt          string   `json:"negative_prompt"`
+	NumOutputs              int      `json:"num_outputs"`
+	NumInferenceSteps       int      `json:"num_inference_steps"`
 	GuidanceScale           int      `json:"guidance_scale"`
 	Width                   int      `json:"width"`
 	Height                  int      `json:"height"`
-	NegativePrompt          string   `json:"negative_prompt"`
-	NumInferenceSteps       int      `json:"num_inference_steps"`
-	NumOutputs              int      `json:"num_outputs"`
-	OriginalPrompt          string   `json:"original_prompt"`
-	OutputFormat            string   `json:"output_format"`
-	OutputQuality           int      `json:"output_quality"`
-	Prompt                  string   `json:"prompt"`
-	Sampler                 string   `json:"sampler"`
-	Seed                    int      `json:"seed"`
-	SessionId               string   `json:"session_id"`
-	ShowOnlyFilteredImage   bool     `json:"show_only_filtered_image"`
-	StreamImageProgress     bool     `json:"stream_image_progress"`
-	StreamProgressUpdates   bool     `json:"stream_progress_updates"`
-	Turbo                   bool     `json:"turbo"`
-	UseFullPrecision        bool     `json:"use_full_precision"`
+	VramUsageLevel          string   `json:"vram_usage_level"`
 	UseStableDiffusionModel string   `json:"use_stable_diffusion_model"`
 	UseVaeModel             string   `json:"use_vae_model,omitempty"`
 	UseHypernetworkModel    string   `json:"use_hypernetwork_model,omitempty"`
+	StreamProgressUpdates   bool     `json:"stream_progress_updates"`
+	StreamImageProgress     bool     `json:"stream_image_progress"`
+	ShowOnlyFilteredImage   bool     `json:"show_only_filtered_image"`
+	OutputFormat            string   `json:"output_format"`
+	OutputQuality           int      `json:"output_quality"`
+	MetadataOutputFormat    string   `json:"metadata_output_format"`
+	OriginalPrompt          string   `json:"original_prompt"`
+	ActiveTags              []string `json:"active_tags"`
+	InactiveTags            []string `json:"inactive_tags"`
+	SamplerName             string   `json:"sampler_name"`
+	SessionId               string   `json:"session_id"`
 }
 
 type RenderResponse struct {
@@ -88,8 +89,9 @@ type StreamResponse struct {
 		Path string `json:"path,omitempty"`
 		Data string `json:"data,omitempty"`
 	} `json:"output"`
-	Step       int `json:"step,omitempty"`
-	TotalSteps int `json:"total_steps,omitempty"`
+	Step       int    `json:"step,omitempty"`
+	TotalSteps int    `json:"total_steps,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 var TOKEN = os.Getenv("BOT_TOKEN")
@@ -141,26 +143,33 @@ func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io
 	if err != nil {
 		s.EditMessage(channelId, referenceId, "failed to upload progress image")
 	} else {
-		footer := "Done!"
-		if step != totalSteps {
-			footer = "Step " + strconv.Itoa(step) + " of " + strconv.Itoa(totalSteps)
-		}
-		s.EditMessageComplex(channelId, referenceId, api.EditMessageData{
-			Content: option.NewNullableString(""),
-			Embeds: &[]discord.Embed{{
-				Title:       "Stable Diffusion",
-				Description: "**Prompt:** " + prompt + "\n**Negative Prompt:** " + negativePrompt + "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model + "\n**VAE:** " + vae + "\n**HyperNetwork:** " + hypernetwork,
-				Footer: &discord.EmbedFooter{
-					Text: footer,
-				},
-				Image: &discord.EmbedImage{
-					URL: msg.Attachments[0].URL,
-				},
-				Timestamp: discord.NewTimestamp(time.Now()),
-			}},
-		})
+		frameEmbed(channelId, referenceId, msg.Attachments[0].URL, step, totalSteps)
 	}
 	return msg, err
+}
+
+func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url string, step int, totalSteps int) {
+	footer := "Done!"
+	if step == 0 && totalSteps == 0 {
+		footer = "Error."
+	}
+	if step != totalSteps {
+		footer = "Step " + strconv.Itoa(step) + " of " + strconv.Itoa(totalSteps)
+	}
+	s.EditMessageComplex(channelId, referenceId, api.EditMessageData{
+		Content: option.NewNullableString(""),
+		Embeds: &[]discord.Embed{{
+			Title:       "Stable Diffusion",
+			Description: "**Prompt:** " + prompt + "\n**Negative Prompt:** " + negativePrompt + "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Model:** " + model + "\n**VAE:** " + vae + "\n**HyperNetwork:** " + hypernetwork,
+			Footer: &discord.EmbedFooter{
+				Text: footer,
+			},
+			Image: &discord.EmbedImage{
+				URL: url,
+			},
+			Timestamp: discord.NewTimestamp(time.Now()),
+		}},
+	})
 }
 
 func getModels() (*ModelsResponse, error) {
@@ -423,28 +432,29 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	}
 
 	body := &Render{
-		ActiveTags:              []string{},
+		Prompt:                  prompt,
+		Seed:                    rand.Intn(1000000),
+		NegativePrompt:          negativePrompt,
+		NumOutputs:              1,
+		NumInferenceSteps:       28,
 		GuidanceScale:           12,
 		Width:                   width,
 		Height:                  height,
-		NegativePrompt:          negativePrompt,
-		NumInferenceSteps:       28,
-		NumOutputs:              1,
-		OriginalPrompt:          prompt,
-		OutputFormat:            "png",
-		OutputQuality:           75,
-		Prompt:                  prompt,
-		Sampler:                 "euler_a",
-		Seed:                    rand.Intn(1000000),
-		SessionId:               sessionId,
-		ShowOnlyFilteredImage:   true,
-		StreamImageProgress:     true,
-		StreamProgressUpdates:   true,
-		Turbo:                   true,
-		UseFullPrecision:        true,
+		VramUsageLevel:          "high",
 		UseStableDiffusionModel: model,
 		UseVaeModel:             vae,
 		UseHypernetworkModel:    hypernetwork,
+		StreamProgressUpdates:   true,
+		StreamImageProgress:     true,
+		ShowOnlyFilteredImage:   true,
+		OutputFormat:            "png",
+		OutputQuality:           75,
+		MetadataOutputFormat:    "txt",
+		OriginalPrompt:          prompt,
+		ActiveTags:              []string{},
+		InactiveTags:            []string{},
+		SamplerName:             "euler_a",
+		SessionId:               sessionId,
 	}
 
 	buf := new(bytes.Buffer)
@@ -506,6 +516,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						defer res3.Body.Close()
 						if lastFrame != nil {
 							s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
+							lastFrame = nil
 						}
 						f, err := frame(c.ChannelID, msg.ID, res3.Body, step, totalSteps)
 						if err == nil {
@@ -513,10 +524,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						}
 					}
 				} else if res2.Output[0].Data != "" {
-					b64body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(res2.Output[0].Data[22:]))
 					if lastFrame != nil {
 						s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
+						lastFrame = nil
 					}
+					b64body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(res2.Output[0].Data[22:]))
 					f, err := frame(c.ChannelID, msg.ID, b64body, totalSteps, totalSteps)
 					if err == nil {
 						lastFrame = f
@@ -524,6 +536,14 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					doneRendering = true
 					break
 				}
+			} else if res2.Status != "" {
+				if lastFrame != nil {
+					s.DeleteMessage(lastFrame.ChannelID, lastFrame.ID, "progress frame")
+					lastFrame = nil
+				}
+				frameEmbed(c.ChannelID, msg.ID, "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png", 0, 0)
+				doneRendering = true
+				break
 			}
 			if res2.Step != 0 {
 				step = res2.Step
