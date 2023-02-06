@@ -258,6 +258,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		} else if cmd == "vae" || cmd == "v" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current VAE:** "+vae)
+			} else if strings.EqualFold(theRest, "none") {
+				vae = ""
+				reply(c.ChannelID, c.ID, "**VAE has been cleared!**")
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -281,6 +284,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		} else if cmd == "hypernetwork" || cmd == "hn" {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+hypernetwork)
+			} else if strings.EqualFold(theRest, "none") {
+				hypernetwork = ""
+				reply(c.ChannelID, c.ID, "**HyperNetwork has been cleared!**")
 			} else {
 				res, err := getModels()
 				if err != nil {
