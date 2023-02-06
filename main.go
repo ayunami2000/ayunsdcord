@@ -21,6 +21,7 @@ import (
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/diamondburned/arikawa/v3/utils/sendpart"
+	"github.com/tjarratt/babble"
 )
 
 var s *state.State
@@ -35,6 +36,7 @@ var prompt string = "cat"
 var negativePrompt string = "nsfw"
 var width int = 768
 var height int = 1280
+var babbler babble.Babbler
 
 type Render struct {
 	ActiveTags              []string `json:"active_tags"`
@@ -227,7 +229,21 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 
 	if cmd != "render" && cmd != "r" {
 		if cmd == "help" || cmd == "h" || cmd == "?" {
-			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, help")
+			reply(c.ChannelID, c.ID, "**Usage:** "+prefix+" (command) [args]\n**Commands:** listmodels, model, vae, hypernetwork, clear, render, size, random, help")
+		} else if cmd == "random" || cmd == "rand" {
+			if theRest == "" {
+				babbler.Count = 10
+			} else {
+				i, err := strconv.Atoi(theRest)
+				if err != nil {
+					reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
+					return
+				} else {
+					babbler.Count = i
+				}
+			}
+			prompt = babbler.Babble()
+			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
 		} else if cmd == "listmodels" || cmd == "lm" {
 			res, err := getModels()
 			if err != nil {
@@ -518,6 +534,9 @@ func main() {
 	if PREFIX == "" {
 		PREFIX = "sd!"
 	}
+
+	babbler = babble.NewBabbler()
+	babbler.Separator = ", "
 
 	res, err := Get(SD_URL + "/get/app_config")
 	if err != nil {
