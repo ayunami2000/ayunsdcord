@@ -42,6 +42,7 @@ type Config struct {
 	StreamImageProgress         bool   `json:"stream_image_progress,omitempty"`
 	LoadingFrameUrl             string `json:"loading_frame_url,omitempty"`
 	ErrorFrameUrl               string `json:"error_frame_url,omitempty"`
+	CountFrameless              bool   `json:"count_frameless,omitempty"`
 }
 
 type UsersList struct {
@@ -147,6 +148,7 @@ var config = Config{
 	StreamImageProgress:         parseBool(getEnv("STREAM_IMAGE_PROGRESS", "true")),
 	LoadingFrameUrl:             getEnv("LOADING_FRAME_URL", "https://c.tenor.com/RVvnVPK-6dcAAAAC/reload-cat.gif"),
 	ErrorFrameUrl:               getEnv("ERROR_FRAME_URL", "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png"),
+	CountFrameless:              parseBool(getEnv("COUNT_FRAMELESS", "false")),
 }
 
 var usersList = UsersList{
@@ -673,7 +675,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				frameEmbed(c.ChannelID, msg.ID, config.ErrorFrameUrl, 0, 0)
 				doneRendering = true
 				break
-			} else if stepGoUp {
+			} else if config.CountFrameless && stepGoUp {
 				if stillTyping {
 					stillTyping = false
 					stoptyping <- struct{}{}
