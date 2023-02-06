@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
@@ -25,7 +26,7 @@ import (
 var s *state.State
 var botID discord.UserID
 var ctx context.Context
-var inUse bool = false
+var inUse sync.Mutex
 var sessionId string = strconv.Itoa(int(time.Now().UnixMilli()))
 var model string = "animemix"
 var vae string = "anything"
@@ -169,10 +170,10 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		args = "?"
 	}
 
-	if inUse {
+	if !inUse.TryLock() {
+		reply(c.ChannelID, c.ID, "**Error:** Already in use.")
 		return
 	}
-	inUse = true
 
 	if err := s.Typing(c.ChannelID); err != nil {
 		log.Println("could not start typing:", err)
@@ -188,7 +189,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				s.Typing(c.ChannelID)
 			case <-stoptyping:
 				ticker.Stop()
-				inUse = false
+				inUse.Unlock()
 				return
 			}
 		}
