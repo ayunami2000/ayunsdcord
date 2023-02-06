@@ -37,6 +37,7 @@ var negativePrompt string = "nsfw"
 var width int = 768
 var height int = 768
 var babbler babble.Babbler
+var frameData []byte
 
 type Render struct {
 	Prompt                  string   `json:"prompt"`
@@ -101,6 +102,7 @@ var CHANNEL_ID = os.Getenv("CHANNEL_ID")
 var IMAGE_DUMP_CHANNEL_ID_RAW = os.Getenv("IMAGE_DUMP_CHANNEL_ID")
 var IMAGE_DUMP_CHANNEL_ID discord.ChannelID
 var PREFIX = os.Getenv("PREFIX")
+var FRAME_URL = os.Getenv("FRAME_URL")
 
 func Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
@@ -134,6 +136,11 @@ func reply(channelId discord.ChannelID, referenceId discord.MessageID, message s
 }
 
 func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io.Reader, step int, totalSteps int) (*discord.Message, error) {
+	if FRAME_URL != "" && step != totalSteps {
+		frameData, _ = io.ReadAll(reader)
+		frameEmbed(channelId, referenceId, FRAME_URL, step, totalSteps)
+		return nil, nil
+	}
 	msg, err := s.SendMessageComplex(IMAGE_DUMP_CHANNEL_ID, api.SendMessageData{
 		Files: []sendpart.File{{
 			Name:   "stable-diffusion_" + strconv.Itoa(int(time.Now().UnixMilli())) + ".png",
@@ -619,6 +626,26 @@ func main() {
 	defer s.Close()
 
 	log.Println("Started as", self.Username)
+
+	if FRAME_URL != "" {
+		http.HandleFunc("/frame.png", func(w http.ResponseWriter, r *http.Request) {
+			if frameData == nil {
+				w.Header().Add("Content-Type", "text/plain")
+				w.WriteHeader(404)
+				io.WriteString(w, "404 Not Found")
+				return
+			}
+			w.Header().Add("Content-Type", "image/png")
+			w.WriteHeader(200)
+			w.Write(frameData)
+		})
+
+		err2 := http.ListenAndServe(":8084", nil)
+
+		if err2 != nil {
+			log.Fatalln("Failed to start webserver:", err2)
+		}
+	}
 
 	select {}
 }
