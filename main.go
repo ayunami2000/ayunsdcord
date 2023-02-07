@@ -46,6 +46,7 @@ type Config struct {
 	ErrorFrameUrl               string  `json:"error_frame_url,omitempty"`
 	CountFrameless              bool    `json:"count_frameless,omitempty"`
 	DefaultPromptStrength       float64 `json:"default_prompt_strength,omitempty"`
+	AllowChangingSize           bool    `json:"allow_changing_size,omitempty"`
 }
 
 type UsersList struct {
@@ -169,6 +170,7 @@ var config = Config{
 	DefaultPromptStrength:       parseFloat(getEnv("DEFAULT_PROMPT_STRENGTH", "0.8")),
 	DefaultInferenceSteps:       parseInt(getEnv("DEFAULT_INFERENCE_STEPS", "28")),
 	DefaultGuidanceScale:        parseFloat(getEnv("DEFAULT_GUIDANCE_SCALE", "12.0")),
+	AllowChangingSize:           parseBool(getEnv("ALLOW_CHANGING_SIZE", "true")),
 }
 
 var usersList = UsersList{
@@ -452,9 +454,13 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 				guidanceScale = config.DefaultGuidanceScale
 				reply(c.ChannelID, c.ID, "**Reset the guidance scale to:** "+floatToStr(guidanceScale))
 			} else if strings.EqualFold(theRest, "size") || strings.EqualFold(theRest, "sz") {
-				width = config.DefaultWidth
-				height = config.DefaultHeight
-				reply(c.ChannelID, c.ID, "**Reset the size to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
+				if config.AllowChangingSize {
+					width = config.DefaultWidth
+					height = config.DefaultHeight
+					reply(c.ChannelID, c.ID, "**Reset the size to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
+				} else {
+					reply(c.ChannelID, c.ID, "**Error:** Changing the size is disabled!")
+				}
 			} else if strings.EqualFold(theRest, "vae") || strings.EqualFold(theRest, "v") {
 				vae = ""
 				reply(c.ChannelID, c.ID, "**Cleared the VAE!**")
@@ -603,29 +609,33 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
 			} else {
-				if theRest == "0" {
-					width = 768
-					height = 768
-				} else if theRest == "1" {
-					width = 1280
-					height = 768
-				} else if theRest == "2" {
-					width = 768
-					height = 1280
-				} else if theRest == "3" {
-					width = 512
-					height = 512
-				} else if theRest == "4" {
-					width = 896
-					height = 512
-				} else if theRest == "5" {
-					width = 512
-					height = 896
+				if config.AllowChangingSize {
+					if theRest == "0" {
+						width = 768
+						height = 768
+					} else if theRest == "1" {
+						width = 1280
+						height = 768
+					} else if theRest == "2" {
+						width = 768
+						height = 1280
+					} else if theRest == "3" {
+						width = 512
+						height = 512
+					} else if theRest == "4" {
+						width = 896
+						height = 512
+					} else if theRest == "5" {
+						width = 512
+						height = 896
+					} else {
+						reply(c.ChannelID, c.ID, "**Error:** Invalid size!")
+						return
+					}
+					reply(c.ChannelID, c.ID, "**Size set to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
 				} else {
-					reply(c.ChannelID, c.ID, "**Error:** Invalid size!")
-					return
+					reply(c.ChannelID, c.ID, "**Error:** Changing the size is disabled!")
 				}
-				reply(c.ChannelID, c.ID, "**Size set to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
 			}
 		} else {
 			reply(c.ChannelID, c.ID, "**Error:** Unknown command!")
