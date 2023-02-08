@@ -32,7 +32,7 @@ type Config struct {
 	ImageDumpChannelId          string   `json:"image_dump_channel_id,omitempty"`
 	Prefix                      string   `json:"prefix,omitempty"`
 	FrameUrl                    string   `json:"frame_url,omitempty"`
-	FrameHttpBind               int      `json:"frame_http_bind,omitempty"`
+	FrameHttpBind               string   `json:"frame_http_bind,omitempty"`
 	AllowBots                   bool     `json:"allow_bots,omitempty"`
 	DefaultPrompt               string   `json:"default_prompt,omitempty"`
 	DefaultNegativePrompt       string   `json:"default_negative_prompt,omitempty"`
@@ -172,7 +172,7 @@ var config = Config{
 	ImageDumpChannelId:          getEnv("IMAGE_DUMP_CHANNEL_ID", ""),
 	Prefix:                      getEnv("PREFIX", "sd!"),
 	FrameUrl:                    getEnv("FRAME_URL", ""),
-	FrameHttpBind:               parseInt(getEnv("FRAME_HTTP_BIND", "localhost:8080")),
+	FrameHttpBind:               getEnv("FRAME_HTTP_BIND", "localhost:8080"),
 	AllowBots:                   parseBool(getEnv("ALLOW_BOTS", "false")),
 	DefaultPrompt:               getEnv("DEFAULT_PROMPT", "cat"),
 	DefaultNegativePrompt:       getEnv("DEFAULT_NEGATIVE_PROMPT", "nsfw"),
@@ -959,7 +959,7 @@ func main() {
 			w.Write(channel.FrameData)
 		})
 
-		err2 := http.ListenAndServe(strconv.Itoa(config.FrameHttpBind), nil)
+		err2 := http.ListenAndServe(config.FrameHttpBind, nil)
 
 		if err2 != nil {
 			log.Fatalln("Failed to start webserver:", err2)
