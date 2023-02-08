@@ -25,28 +25,28 @@ import (
 )
 
 type Config struct {
-	BotToken                    string  `json:"bot_token,omitempty"`
-	StableDiffusionURL          string  `json:"sd_url,omitempty"`
-	BasicAuth                   string  `json:"basic_auth,omitempty"`
-	ChannelId                   string  `json:"channel_id,omitempty"`
-	ImageDumpChannelId          string  `json:"image_dump_channel_id,omitempty"`
-	Prefix                      string  `json:"prefix,omitempty"`
-	FrameUrl                    string  `json:"frame_url,omitempty"`
-	FrameHttpPort               int     `json:"frame_http_port,omitempty"`
-	AllowBots                   bool    `json:"allow_bots,omitempty"`
-	DefaultPrompt               string  `json:"default_prompt,omitempty"`
-	DefaultNegativePrompt       string  `json:"default_negative_prompt,omitempty"`
-	DefaultWidth                int     `json:"default_width,omitempty"`
-	DefaultHeight               int     `json:"default_height,omitempty"`
-	DefaultInferenceSteps       int     `json:"default_inference_steps,omitempty"`
-	DefaultGuidanceScale        float64 `json:"default_guidance_scale,omitempty"`
-	AllowChangingNegativePrompt bool    `json:"allow_changing_negative_prompt,omitempty"`
-	StreamImageProgress         bool    `json:"stream_image_progress,omitempty"`
-	LoadingFrameUrl             string  `json:"loading_frame_url,omitempty"`
-	ErrorFrameUrl               string  `json:"error_frame_url,omitempty"`
-	CountFrameless              bool    `json:"count_frameless,omitempty"`
-	DefaultPromptStrength       float64 `json:"default_prompt_strength,omitempty"`
-	AllowChangingSize           bool    `json:"allow_changing_size,omitempty"`
+	BotToken                    string   `json:"bot_token,omitempty"`
+	StableDiffusionURL          string   `json:"sd_url,omitempty"`
+	BasicAuth                   string   `json:"basic_auth,omitempty"`
+	ChannelIds                  []string `json:"channel_id,omitempty"`
+	ImageDumpChannelId          string   `json:"image_dump_channel_id,omitempty"`
+	Prefix                      string   `json:"prefix,omitempty"`
+	FrameUrl                    string   `json:"frame_url,omitempty"`
+	FrameHttpPort               int      `json:"frame_http_port,omitempty"`
+	AllowBots                   bool     `json:"allow_bots,omitempty"`
+	DefaultPrompt               string   `json:"default_prompt,omitempty"`
+	DefaultNegativePrompt       string   `json:"default_negative_prompt,omitempty"`
+	DefaultWidth                int      `json:"default_width,omitempty"`
+	DefaultHeight               int      `json:"default_height,omitempty"`
+	DefaultInferenceSteps       int      `json:"default_inference_steps,omitempty"`
+	DefaultGuidanceScale        float64  `json:"default_guidance_scale,omitempty"`
+	AllowChangingNegativePrompt bool     `json:"allow_changing_negative_prompt,omitempty"`
+	StreamImageProgress         bool     `json:"stream_image_progress,omitempty"`
+	LoadingFrameUrl             string   `json:"loading_frame_url,omitempty"`
+	ErrorFrameUrl               string   `json:"error_frame_url,omitempty"`
+	CountFrameless              bool     `json:"count_frameless,omitempty"`
+	DefaultPromptStrength       float64  `json:"default_prompt_strength,omitempty"`
+	AllowChangingSize           bool     `json:"allow_changing_size,omitempty"`
 }
 
 type UsersList struct {
@@ -152,7 +152,7 @@ var config = Config{
 	BotToken:                    getEnv("BOT_TOKEN", ""),
 	StableDiffusionURL:          getEnv("SD_URL", "http://localhost:9000"),
 	BasicAuth:                   getEnv("BASIC_AUTH", ""),
-	ChannelId:                   getEnv("CHANNEL_ID", ""),
+	ChannelIds:                  strings.Split(getEnv("CHANNEL_IDS", ""), ","),
 	ImageDumpChannelId:          getEnv("IMAGE_DUMP_CHANNEL_ID", ""),
 	Prefix:                      getEnv("PREFIX", "sd!"),
 	FrameUrl:                    getEnv("FRAME_URL", ""),
@@ -359,8 +359,17 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
-	if config.ChannelId != "" && c.ChannelID.String() != config.ChannelId {
-		return
+	if len(config.ChannelIds) > 0 {
+		pleaseExit := true
+		for _, channelId := range config.ChannelIds {
+			if channelId == c.ChannelID.String() {
+				pleaseExit = false
+				break
+			}
+		}
+		if pleaseExit {
+			return
+		}
 	}
 
 	if !canUse(c.Author.ID.String()) {
