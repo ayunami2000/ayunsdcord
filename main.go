@@ -172,7 +172,7 @@ var config = Config{
 	ImageDumpChannelId:          getEnv("IMAGE_DUMP_CHANNEL_ID", ""),
 	Prefix:                      getEnv("PREFIX", "sd!"),
 	FrameUrl:                    getEnv("FRAME_URL", ""),
-	FrameHttpBind:               getEnv("FRAME_HTTP_BIND", "localhost:8080"),
+	FrameHttpBind:               getEnv("FRAME_HTTP_BIND", ":8080"),
 	AllowBots:                   parseBool(getEnv("ALLOW_BOTS", "false")),
 	DefaultPrompt:               getEnv("DEFAULT_PROMPT", "cat"),
 	DefaultNegativePrompt:       getEnv("DEFAULT_NEGATIVE_PROMPT", "nsfw"),
