@@ -875,7 +875,7 @@ func main() {
 		log.Fatalln("Missing bot token!")
 	}
 
-	if config.ChannelId == "" {
+	if len(config.ChannelIds) < 1 {
 		log.Println("Missing channel ID, will respond in all channels!")
 	}
 
