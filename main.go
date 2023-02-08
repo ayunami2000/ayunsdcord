@@ -245,16 +245,20 @@ func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io
 	}
 	if config.FrameUrl != "" && step != totalSteps {
 		channel.FrameData, _ = io.ReadAll(reader)
-		frameEmbed(channelId, referenceId, config.FrameUrl+"/"+channelId.String()+"/"+millisStr(), step, totalSteps, hasInitImage)
+		frameEmbed(channelId, referenceId, config.FrameUrl+"/"+channelId.String()+"/"+millisStr()+".jpg", step, totalSteps, hasInitImage)
 		return nil, nil
 	}
 	dumpChannel := channelId
 	if config.ImageDumpChannelId != "" {
 		dumpChannel = imageDumpChannelId
 	}
+	ext := ".jpg"
+	if step == totalSteps && step > 0 {
+		ext = ".png"
+	}
 	msg, err := s.SendMessageComplex(dumpChannel, api.SendMessageData{
 		Files: []sendpart.File{{
-			Name:   "stable-diffusion_" + millisStr() + ".png",
+			Name:   "stable-diffusion_" + millisStr() + ext,
 			Reader: reader,
 		}},
 	})
@@ -954,7 +958,7 @@ func main() {
 				io.WriteString(w, "404 Not Found")
 				return
 			}
-			w.Header().Add("Content-Type", "image/png")
+			w.Header().Add("Content-Type", "image/jpeg")
 			w.WriteHeader(200)
 			w.Write(channel.FrameData)
 		})
