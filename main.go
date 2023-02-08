@@ -112,6 +112,20 @@ type StreamResponse struct {
 	Status     string `json:"status,omitempty"`
 }
 
+type Settings struct {
+	InUse          sync.Mutex
+	Model          string
+	VAE            string
+	HyperNetwork   string
+	Prompt         string
+	NegativePrompt string
+	Width          int
+	Height         int
+	PromptStrength float64
+	InferenceSteps int
+	GuidanceScale  float64
+}
+
 // https://stackoverflow.com/a/40326580/6917520
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -185,18 +199,8 @@ func millisStr() string {
 var s *state.State
 var botID discord.UserID
 var ctx context.Context
-var inUse sync.Mutex
+var channels = make(map[string]*Settings)
 var sessionId string = millisStr()
-var model string
-var vae string
-var hypernetwork string
-var prompt string = config.DefaultPrompt
-var negativePrompt string = config.DefaultNegativePrompt
-var width int = config.DefaultWidth
-var height int = config.DefaultHeight
-var promptStrength float64 = config.DefaultPromptStrength
-var inferenceSteps int = config.DefaultInferenceSteps
-var guidanceScale float64 = config.DefaultGuidanceScale
 var babbler babble.Babbler
 var frameData []byte
 var imageDumpChannelId discord.ChannelID
@@ -262,6 +266,7 @@ func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io
 }
 
 func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url string, step int, totalSteps int, hasInitImage bool) {
+	channel := channels[channelId.String()]
 	footer := "Done!"
 	if step == 0 && totalSteps == 0 {
 		footer = "Error."
@@ -272,19 +277,19 @@ func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url 
 	if url != "" {
 		lastFrameUrl = url
 	}
-	desc := "**Prompt:** " + prompt
-	if negativePrompt != "" {
-		desc += "\n**Negative Prompt:** " + negativePrompt
+	desc := "**Prompt:** " + channel.Prompt
+	if channel.NegativePrompt != "" {
+		desc += "\n**Negative Prompt:** " + channel.NegativePrompt
 	}
-	desc += "\n**Width:** " + strconv.Itoa(width) + "\n**Height:** " + strconv.Itoa(height) + "\n**Inference Steps:** " + strconv.Itoa(inferenceSteps) + "\n**Guidance Scale:** " + floatToStr(guidanceScale) + "\n**Model:** " + model
-	if vae != "" {
-		desc += "\n**VAE:** " + vae
+	desc += "\n**Width:** " + strconv.Itoa(channel.Width) + "\n**Height:** " + strconv.Itoa(channel.Height) + "\n**Inference Steps:** " + strconv.Itoa(channel.InferenceSteps) + "\n**Guidance Scale:** " + floatToStr(channel.GuidanceScale) + "\n**Model:** " + channel.Model
+	if channel.VAE != "" {
+		desc += "\n**VAE:** " + channel.VAE
 	}
-	if hypernetwork != "" {
-		desc += "\n**HyperNetwork:** " + hypernetwork
+	if channel.HyperNetwork != "" {
+		desc += "\n**HyperNetwork:** " + channel.HyperNetwork
 	}
 	if hasInitImage {
-		desc += "\n**Img2Img Prompt Strength:** " + floatToStr(promptStrength)
+		desc += "\n**Img2Img Prompt Strength:** " + floatToStr(channel.PromptStrength)
 	}
 	s.EditMessageComplex(channelId, referenceId, api.EditMessageData{
 		Content: option.NewNullableString(""),
@@ -350,6 +355,21 @@ func canUse(authorId string) bool {
 	return !usersList.WhitelistMode
 }
 
+func setCurrentModels(channelId string) {
+	channel := channels[channelId]
+	res, err := Get(config.StableDiffusionURL + "/get/app_config")
+	if err != nil {
+		log.Fatalln("Failed to get active models!")
+	} else {
+		resParsed := new(AppConfigResponse)
+		json.NewDecoder(res.Body).Decode(resParsed)
+		channel.Model = resParsed.Model.StableDiffusion
+		channel.VAE = resParsed.Model.VAE
+		channel.HyperNetwork = resParsed.Model.HyperNetwork
+		res.Body.Close()
+	}
+}
+
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
 		return
@@ -391,12 +411,28 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		args = "?"
 	}
 
-	if !inUse.TryLock() {
+	channel, channelInit := channels[c.ChannelID.String()]
+
+	if !channelInit {
+		channels[c.ChannelID.String()] = &Settings{
+			Prompt:         config.DefaultPrompt,
+			NegativePrompt: config.DefaultNegativePrompt,
+			Width:          config.DefaultWidth,
+			Height:         config.DefaultHeight,
+			PromptStrength: config.DefaultPromptStrength,
+			InferenceSteps: config.DefaultInferenceSteps,
+			GuidanceScale:  config.DefaultGuidanceScale,
+		}
+		setCurrentModels(c.ChannelID.String())
+		channel = channels[c.ChannelID.String()]
+	}
+
+	if !channel.InUse.TryLock() {
 		reply(c.ChannelID, c.ID, "**Error:** Already in use.")
 		return
 	}
 
-	defer inUse.Unlock()
+	defer channel.InUse.Unlock()
 
 	if err := s.Typing(c.ChannelID); err != nil {
 		log.Println("Could not start typing:", err)
@@ -428,8 +464,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if err != nil {
 				reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 			} else {
-				prompt = truncateText(pr, 512)
-				reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
+				channel.Prompt = truncateText(pr, 512)
+				reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+channel.Prompt)
 			}
 		} else if cmd == "listmodels" || cmd == "lm" {
 			res, err := getModels()
@@ -442,11 +478,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if theRest == "" {
 				reply(c.ChannelID, c.ID, "**Error:** Please specify which parameter to clear/reset: prompt, negativeprompt, model, vae, hypernetwork, size, promptstrength")
 			} else if strings.EqualFold(theRest, "prompt") || strings.EqualFold(theRest, "p") {
-				prompt = ""
+				channel.Prompt = ""
 				reply(c.ChannelID, c.ID, "**Cleared the prompt!**")
 			} else if strings.EqualFold(theRest, "negativeprompt") || strings.EqualFold(theRest, "np") {
 				if config.AllowChangingNegativePrompt {
-					negativePrompt = ""
+					channel.NegativePrompt = ""
 					reply(c.ChannelID, c.ID, "**Cleared the negative prompt!**")
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Changing the negative prompt is disabled!")
@@ -454,34 +490,34 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			} else if strings.EqualFold(theRest, "model") || strings.EqualFold(theRest, "m") {
 				reply(c.ChannelID, c.ID, "**Error:** The Model cannot be cleared!")
 			} else if strings.EqualFold(theRest, "promptstrength") || strings.EqualFold(theRest, "ps") {
-				promptStrength = config.DefaultPromptStrength
-				reply(c.ChannelID, c.ID, "**Reset the Img2Img prompt strength to:** "+floatToStr(promptStrength))
+				channel.PromptStrength = config.DefaultPromptStrength
+				reply(c.ChannelID, c.ID, "**Reset the Img2Img prompt strength to:** "+floatToStr(channel.PromptStrength))
 			} else if strings.EqualFold(theRest, "inferencesteps") || strings.EqualFold(theRest, "is") {
-				inferenceSteps = config.DefaultInferenceSteps
-				reply(c.ChannelID, c.ID, "**Reset the inference steps to:** "+strconv.Itoa(inferenceSteps))
+				channel.InferenceSteps = config.DefaultInferenceSteps
+				reply(c.ChannelID, c.ID, "**Reset the inference steps to:** "+strconv.Itoa(channel.InferenceSteps))
 			} else if strings.EqualFold(theRest, "guidancescale") || strings.EqualFold(theRest, "gs") {
-				guidanceScale = config.DefaultGuidanceScale
-				reply(c.ChannelID, c.ID, "**Reset the guidance scale to:** "+floatToStr(guidanceScale))
+				channel.GuidanceScale = config.DefaultGuidanceScale
+				reply(c.ChannelID, c.ID, "**Reset the guidance scale to:** "+floatToStr(channel.GuidanceScale))
 			} else if strings.EqualFold(theRest, "size") || strings.EqualFold(theRest, "sz") {
 				if config.AllowChangingSize {
-					width = config.DefaultWidth
-					height = config.DefaultHeight
-					reply(c.ChannelID, c.ID, "**Reset the size to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
+					channel.Width = config.DefaultWidth
+					channel.Height = config.DefaultHeight
+					reply(c.ChannelID, c.ID, "**Reset the size to:** "+strconv.Itoa(channel.Width)+"x"+strconv.Itoa(channel.Height))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Changing the size is disabled!")
 				}
 			} else if strings.EqualFold(theRest, "vae") || strings.EqualFold(theRest, "v") {
-				vae = ""
+				channel.VAE = ""
 				reply(c.ChannelID, c.ID, "**Cleared the VAE!**")
 			} else if strings.EqualFold(theRest, "hypernetwork") || strings.EqualFold(theRest, "hypnet") || strings.EqualFold(theRest, "hn") {
-				hypernetwork = ""
+				channel.HyperNetwork = ""
 				reply(c.ChannelID, c.ID, "**Cleared the HyperNetwork!**")
 			} else {
 				reply(c.ChannelID, c.ID, "**Error:** Invalid parameter to clear!")
 			}
 		} else if cmd == "model" || cmd == "m" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current Model:** "+model)
+				reply(c.ChannelID, c.ID, "**Current Model:** "+channel.Model)
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -495,8 +531,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						}
 					}
 					if found {
-						model = theRest
-						reply(c.ChannelID, c.ID, "**Model set to:** "+model)
+						channel.Model = theRest
+						reply(c.ChannelID, c.ID, "**Model set to:** "+channel.Model)
 					} else {
 						reply(c.ChannelID, c.ID, "**Error:** Invalid model!")
 					}
@@ -504,7 +540,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			}
 		} else if cmd == "vae" || cmd == "v" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current VAE:** "+vae)
+				reply(c.ChannelID, c.ID, "**Current VAE:** "+channel.VAE)
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -518,8 +554,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						}
 					}
 					if found {
-						vae = theRest
-						reply(c.ChannelID, c.ID, "**VAE set to:** "+vae)
+						channel.VAE = theRest
+						reply(c.ChannelID, c.ID, "**VAE set to:** "+channel.VAE)
 					} else {
 						reply(c.ChannelID, c.ID, "**Error:** Invalid VAE!")
 					}
@@ -527,7 +563,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			}
 		} else if cmd == "hypernetwork" || cmd == "hypnet" || cmd == "hn" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+hypernetwork)
+				reply(c.ChannelID, c.ID, "**Current HyperNetwork:** "+channel.HyperNetwork)
 			} else {
 				res, err := getModels()
 				if err != nil {
@@ -541,8 +577,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 						}
 					}
 					if found {
-						hypernetwork = theRest
-						reply(c.ChannelID, c.ID, "**HyperNetwork set to:** "+hypernetwork)
+						channel.HyperNetwork = theRest
+						reply(c.ChannelID, c.ID, "**HyperNetwork set to:** "+channel.HyperNetwork)
 					} else {
 						reply(c.ChannelID, c.ID, "**Error:** Invalid HyperNetwork!")
 					}
@@ -550,25 +586,25 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			}
 		} else if cmd == "prompt" || cmd == "p" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current prompt:** "+prompt)
+				reply(c.ChannelID, c.ID, "**Current prompt:** "+channel.Prompt)
 			} else {
-				prompt = truncateText(theRest, 512)
-				reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+				channel.Prompt = truncateText(theRest, 512)
+				reply(c.ChannelID, c.ID, "**Prompt set to:** "+channel.Prompt)
 			}
 		} else if cmd == "negativeprompt" || cmd == "np" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current negative prompt:** "+negativePrompt)
+				reply(c.ChannelID, c.ID, "**Current negative prompt:** "+channel.NegativePrompt)
 			} else {
 				if config.AllowChangingNegativePrompt {
-					negativePrompt = truncateText(theRest, 512)
-					reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+negativePrompt)
+					channel.NegativePrompt = truncateText(theRest, 512)
+					reply(c.ChannelID, c.ID, "**Negative prompt set to:** "+channel.NegativePrompt)
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Changing the negative prompt is disabled!")
 				}
 			}
 		} else if cmd == "promptstrength" || cmd == "ps" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current Img2Img prompt strength:** "+floatToStr(promptStrength))
+				reply(c.ChannelID, c.ID, "**Current Img2Img prompt strength:** "+floatToStr(channel.PromptStrength))
 			} else {
 				if f, err := strconv.ParseFloat(theRest, 64); err == nil {
 					if f < 0 {
@@ -576,15 +612,15 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					} else if f > 0.999999 {
 						f = 0.999999
 					}
-					promptStrength = f
-					reply(c.ChannelID, c.ID, "**Img2Img prompt strength set to:** "+floatToStr(promptStrength))
+					channel.PromptStrength = f
+					reply(c.ChannelID, c.ID, "**Img2Img prompt strength set to:** "+floatToStr(channel.PromptStrength))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Invalid Img2Img prompt strength!")
 				}
 			}
 		} else if cmd == "inferencesteps" || cmd == "is" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current inference steps:** "+floatToStr(float64(inferenceSteps)))
+				reply(c.ChannelID, c.ID, "**Current inference steps:** "+floatToStr(float64(channel.InferenceSteps)))
 			} else {
 				if i, err := strconv.Atoi(theRest); err == nil {
 					if i < 1 {
@@ -592,15 +628,15 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					} else if i > 100 {
 						i = 100
 					}
-					inferenceSteps = i
-					reply(c.ChannelID, c.ID, "**Inference steps set to:** "+strconv.Itoa(inferenceSteps))
+					channel.InferenceSteps = i
+					reply(c.ChannelID, c.ID, "**Inference steps set to:** "+strconv.Itoa(channel.InferenceSteps))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Invalid inference steps!")
 				}
 			}
 		} else if cmd == "guidancescale" || cmd == "gs" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current guidance scale:** "+floatToStr(guidanceScale))
+				reply(c.ChannelID, c.ID, "**Current guidance scale:** "+floatToStr(channel.GuidanceScale))
 			} else {
 				if f, err := strconv.ParseFloat(theRest, 64); err == nil {
 					if f < 1.1 {
@@ -608,40 +644,40 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					} else if f > 50 {
 						f = 50
 					}
-					guidanceScale = f
-					reply(c.ChannelID, c.ID, "**Guidance scale set to:** "+floatToStr(guidanceScale))
+					channel.GuidanceScale = f
+					reply(c.ChannelID, c.ID, "**Guidance scale set to:** "+floatToStr(channel.GuidanceScale))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Invalid guidance scale!")
 				}
 			}
 		} else if cmd == "size" || cmd == "sz" {
 			if theRest == "" {
-				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
+				reply(c.ChannelID, c.ID, "**Current size:** "+strconv.Itoa(channel.Width)+"x"+strconv.Itoa(channel.Height)+"\n**Sizes:** 0: 768x768, 1: 1280x768, 2: 768x1280, 3: 512x512, 4: 896x512, 5: 512x896")
 			} else {
 				if config.AllowChangingSize {
 					if theRest == "0" {
-						width = 768
-						height = 768
+						channel.Width = 768
+						channel.Height = 768
 					} else if theRest == "1" {
-						width = 1280
-						height = 768
+						channel.Width = 1280
+						channel.Height = 768
 					} else if theRest == "2" {
-						width = 768
-						height = 1280
+						channel.Width = 768
+						channel.Height = 1280
 					} else if theRest == "3" {
-						width = 512
-						height = 512
+						channel.Width = 512
+						channel.Height = 512
 					} else if theRest == "4" {
-						width = 896
-						height = 512
+						channel.Width = 896
+						channel.Height = 512
 					} else if theRest == "5" {
-						width = 512
-						height = 896
+						channel.Width = 512
+						channel.Height = 896
 					} else {
 						reply(c.ChannelID, c.ID, "**Error:** Invalid size!")
 						return
 					}
-					reply(c.ChannelID, c.ID, "**Size set to:** "+strconv.Itoa(width)+"x"+strconv.Itoa(height))
+					reply(c.ChannelID, c.ID, "**Size set to:** "+strconv.Itoa(channel.Width)+"x"+strconv.Itoa(channel.Height))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Changing the size is disabled!")
 				}
@@ -657,43 +693,43 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		if err != nil {
 			reply(c.ChannelID, c.ID, "**Error:** Invalid number!")
 		} else {
-			prompt = truncateText(pr, 512)
-			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+prompt)
+			channel.Prompt = truncateText(pr, 512)
+			reply(c.ChannelID, c.ID, "**Prompt randomly set to:** "+channel.Prompt)
 		}
 	} else if theRest != "" {
-		prompt = truncateText(theRest, 512)
-		reply(c.ChannelID, c.ID, "**Prompt set to:** "+prompt)
+		channel.Prompt = truncateText(theRest, 512)
+		reply(c.ChannelID, c.ID, "**Prompt set to:** "+channel.Prompt)
 	}
 
 	body := &Render{
-		Prompt:                  prompt,
+		Prompt:                  channel.Prompt,
 		Seed:                    rand.Intn(1000000),
-		NegativePrompt:          negativePrompt,
+		NegativePrompt:          channel.NegativePrompt,
 		NumOutputs:              1,
-		NumInferenceSteps:       inferenceSteps,
-		GuidanceScale:           guidanceScale,
-		Width:                   width,
-		Height:                  height,
+		NumInferenceSteps:       channel.InferenceSteps,
+		GuidanceScale:           channel.GuidanceScale,
+		Width:                   channel.Width,
+		Height:                  channel.Height,
 		VramUsageLevel:          "high",
-		UseStableDiffusionModel: model,
+		UseStableDiffusionModel: channel.Model,
 		StreamProgressUpdates:   true,
 		StreamImageProgress:     config.StreamImageProgress,
 		ShowOnlyFilteredImage:   true,
 		OutputFormat:            "png",
 		OutputQuality:           75,
 		MetadataOutputFormat:    "txt",
-		OriginalPrompt:          prompt,
+		OriginalPrompt:          channel.Prompt,
 		ActiveTags:              []string{},
 		InactiveTags:            []string{},
 		SamplerName:             "euler_a", // dpmpp_2m
 		SessionId:               sessionId,
 	}
 
-	if vae != "" {
-		body.UseVaeModel = vae
+	if channel.VAE != "" {
+		body.UseVaeModel = channel.VAE
 	}
-	if hypernetwork != "" {
-		body.UseHypernetworkModel = hypernetwork
+	if channel.HyperNetwork != "" {
+		body.UseHypernetworkModel = channel.HyperNetwork
 	}
 
 	if len(c.Attachments) > 0 && strings.HasPrefix(c.Attachments[0].ContentType, "image/") {
@@ -701,7 +737,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		if err == nil {
 			img, _ := io.ReadAll(res.Body)
 			body.InitImage = "data:" + c.Attachments[0].ContentType + ";base64," + base64.StdEncoding.EncodeToString(img)
-			body.PromptStrength = promptStrength
+			body.PromptStrength = channel.PromptStrength
 			res.Body.Close()
 			reply(c.ChannelID, c.ID, "**Loaded Img2Img image from attachment!**")
 			if c.Attachments[0].Description != "" {
@@ -711,8 +747,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 					} else if f > 0.999999 {
 						f = 0.999999
 					}
-					promptStrength = f
-					reply(c.ChannelID, c.ID, "**Loaded Img2Img prompt strength from alt text:** "+floatToStr(promptStrength))
+					channel.PromptStrength = f
+					reply(c.ChannelID, c.ID, "**Loaded Img2Img prompt strength from alt text:** "+floatToStr(channel.PromptStrength))
 				} else {
 					reply(c.ChannelID, c.ID, "**Error:** Invalid Img2Img prompt strength in alt text!")
 				}
@@ -862,13 +898,6 @@ func loadJson(path string, v interface{}) {
 
 func main() {
 	loadJson("config.json", &config)
-	prompt = config.DefaultPrompt
-	negativePrompt = config.DefaultNegativePrompt
-	width = config.DefaultWidth
-	height = config.DefaultHeight
-	promptStrength = config.DefaultPromptStrength
-	inferenceSteps = config.DefaultInferenceSteps
-	guidanceScale = config.DefaultGuidanceScale
 	loadJson("users.json", &usersList)
 
 	if config.BotToken == "" {
@@ -876,7 +905,7 @@ func main() {
 	}
 
 	if len(config.ChannelIds) < 1 {
-		log.Println("Missing channel ID, will respond in all channels!")
+		log.Println("Missing channel IDs, will respond in all channels!")
 	}
 
 	if config.ImageDumpChannelId == "" {
@@ -893,18 +922,6 @@ func main() {
 
 	babbler = babble.NewBabbler()
 	babbler.Separator = ", "
-
-	res, err := Get(config.StableDiffusionURL + "/get/app_config")
-	if err != nil {
-		log.Fatalln("Failed to get active models!")
-	} else {
-		resParsed := new(AppConfigResponse)
-		json.NewDecoder(res.Body).Decode(resParsed)
-		model = resParsed.Model.StableDiffusion
-		vae = resParsed.Model.VAE
-		hypernetwork = resParsed.Model.HyperNetwork
-		res.Body.Close()
-	}
 
 	s = state.New("Bot " + config.BotToken)
 	s.AddHandler(messageCreate)

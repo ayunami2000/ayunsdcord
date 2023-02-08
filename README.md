@@ -1,5 +1,5 @@
 # ayunsdcord
-stable diffusion ui **BETA** discord bot
+stable diffusion ui discord bot
 
 built for use with only one image at a time
 
