@@ -28,7 +28,7 @@ type Config struct {
 	BotToken                    string   `json:"bot_token,omitempty"`
 	StableDiffusionURL          string   `json:"sd_url,omitempty"`
 	BasicAuth                   string   `json:"basic_auth,omitempty"`
-	ChannelIds                  []string `json:"channel_id,omitempty"`
+	ChannelIds                  []string `json:"channel_ids,omitempty"`
 	ImageDumpChannelId          string   `json:"image_dump_channel_id,omitempty"`
 	Prefix                      string   `json:"prefix,omitempty"`
 	FrameUrl                    string   `json:"frame_url,omitempty"`
