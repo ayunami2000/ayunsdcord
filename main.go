@@ -124,6 +124,8 @@ type Settings struct {
 	PromptStrength float64
 	InferenceSteps int
 	GuidanceScale  float64
+	LastFrameUrl   string
+	FrameData      []byte
 }
 
 // https://stackoverflow.com/a/40326580/6917520
@@ -202,9 +204,7 @@ var ctx context.Context
 var channels = make(map[string]*Settings)
 var sessionId string = millisStr()
 var babbler babble.Babbler
-var frameData []byte
 var imageDumpChannelId discord.ChannelID
-var lastFrameUrl string
 
 func Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
@@ -238,13 +238,14 @@ func reply(channelId discord.ChannelID, referenceId discord.MessageID, message s
 }
 
 func frame(channelId discord.ChannelID, referenceId discord.MessageID, reader io.Reader, step int, totalSteps int, hasInitImage bool) (*discord.Message, error) {
+	channel := channels[channelId.String()]
 	if reader == nil {
 		frameEmbed(channelId, referenceId, "", step, totalSteps, hasInitImage)
 		return nil, nil
 	}
 	if config.FrameUrl != "" && step != totalSteps {
-		frameData, _ = io.ReadAll(reader)
-		frameEmbed(channelId, referenceId, config.FrameUrl, step, totalSteps, hasInitImage)
+		channel.FrameData, _ = io.ReadAll(reader)
+		frameEmbed(channelId, referenceId, config.FrameUrl+"/"+channelId.String()+"/"+millisStr(), step, totalSteps, hasInitImage)
 		return nil, nil
 	}
 	dumpChannel := channelId
@@ -275,7 +276,7 @@ func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url 
 		footer = "Step " + strconv.Itoa(step) + " of " + strconv.Itoa(totalSteps)
 	}
 	if url != "" {
-		lastFrameUrl = url
+		channel.LastFrameUrl = url
 	}
 	desc := "**Prompt:** " + channel.Prompt
 	if channel.NegativePrompt != "" {
@@ -300,7 +301,7 @@ func frameEmbed(channelId discord.ChannelID, referenceId discord.MessageID, url 
 				Text: footer,
 			},
 			Image: &discord.EmbedImage{
-				URL: lastFrameUrl,
+				URL: channel.LastFrameUrl,
 			},
 			Timestamp: discord.NewTimestamp(time.Now()),
 		}},
@@ -787,7 +788,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	doneRendering := bool(false)
 
 	lastFrame := new(discord.Message)
-	lastFrameUrl = config.LoadingFrameUrl
+	channel.LastFrameUrl = config.LoadingFrameUrl
 
 	step := -1
 	totalSteps := 28
@@ -945,8 +946,9 @@ func main() {
 	log.Println("Started as", self.Username)
 
 	if config.FrameUrl != "" {
-		http.HandleFunc("/frame.png"+millisStr(), func(w http.ResponseWriter, r *http.Request) {
-			if frameData == nil {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			channel, channelInit := channels[strings.SplitN(r.RequestURI, "/", 3)[1]]
+			if !channelInit || channel.FrameData == nil {
 				w.Header().Add("Content-Type", "text/plain")
 				w.WriteHeader(404)
 				io.WriteString(w, "404 Not Found")
@@ -954,7 +956,7 @@ func main() {
 			}
 			w.Header().Add("Content-Type", "image/png")
 			w.WriteHeader(200)
-			w.Write(frameData)
+			w.Write(channel.FrameData)
 		})
 
 		err2 := http.ListenAndServe(":"+strconv.Itoa(config.FrameHttpPort), nil)
