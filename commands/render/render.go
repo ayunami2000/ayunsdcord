@@ -64,18 +64,20 @@ func Run(cmdctx *command.CommandContext) error {
 
 	attachments := cmdctx.Message.Attachments
 	hasImageAttachment := len(attachments) > 0 && strings.HasPrefix(attachments[0].ContentType, "image/")
-	if hasImageAttachment && config.CanChange(cmdctx.ChannelSettings.InUse, "img2img") == nil {
-		attachment := attachments[0]
-		if err := img2img(cmdctx, attachment, data); err != nil {
-			_, err := cmdctx.TryReply("**Error:** Failed to download image for Img2Img!")
+	if hasImageAttachment {
+		if err := config.CanChange(cmdctx.ChannelSettings.InUse, "img2img"); err != nil {
+			attachment := attachments[0]
+			if err := img2img(cmdctx, attachment, data); err != nil {
+				_, err := cmdctx.TryReply("**Error:** Failed to download image for Img2Img!")
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			_, err := cmdctx.TryReply(fmt.Sprintf("**Error:** %v", err))
 			if err != nil {
 				return err
 			}
-		}
-	} else if hasImageAttachment {
-		_, err := cmdctx.TryReply("changing the Img2Img image is disabled")
-		if err != nil {
-			return err
 		}
 	}
 
@@ -92,7 +94,9 @@ func Run(cmdctx *command.CommandContext) error {
 
 	var currentFrame *discord.Message
 	currentStep := uint(0)
+	config.ConfigMutex.Lock()
 	totalSteps := config.Config.DefaultInferenceSteps
+	streamImageProgress := config.Config.StreamImageProgress
 	stillTyping := true
 
 	cmdctx.ChannelSettings.CurrentRenderInfoMutex.Lock()
@@ -102,6 +106,7 @@ func Run(cmdctx *command.CommandContext) error {
 		Task:         task,
 	}
 	cmdctx.ChannelSettings.CurrentRenderInfoMutex.Unlock()
+	config.ConfigMutex.Unlock()
 
 	for currentStep < totalSteps {
 		responses, err := sdapi.GetStream(streamurl)
@@ -138,7 +143,7 @@ func Run(cmdctx *command.CommandContext) error {
 		}
 
 		if currentResponse == nil {
-			if !config.Config.StreamImageProgress {
+			if !streamImageProgress {
 				_ = frameEmbed(cmdctx, msg, "", currentStep, totalSteps, false)
 			}
 

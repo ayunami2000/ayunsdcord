@@ -5,9 +5,11 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/diamondburned/arikawa/v3/discord"
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
@@ -54,6 +56,7 @@ type configStruct struct {
 }
 
 var Config = configStruct{}
+var ConfigMutex = sync.Mutex{}
 
 func init() {
 	viper.AddConfigPath(".")
@@ -101,6 +104,17 @@ func init() {
 	if err != nil {
 		log.Fatalf("unable to decode config: %v\n", err)
 	}
+
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		newConfig := configStruct{}
+		err := viper.Unmarshal(&newConfig)
+		if err == nil {
+			ConfigMutex.Lock()
+			Config = newConfig
+			ConfigMutex.Unlock()
+		}
+	})
 }
 
 func GetImageDumpChannelId() discord.ChannelID {
@@ -120,6 +134,8 @@ func GetImageDumpChannelId() discord.ChannelID {
 }
 
 func CanChange_NoLock(s string) bool {
+	ConfigMutex.Lock()
+	defer ConfigMutex.Unlock()
 	for _, v := range Config.DenyChanging {
 		if strings.EqualFold(strings.ReplaceAll(v, "_", ""), s) {
 			return false
