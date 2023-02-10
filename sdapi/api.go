@@ -41,8 +41,8 @@ func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	if res.StatusCode >= 400 {
-		return nil, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
+	if res.StatusCode >= 400 && res.StatusCode != 425 {
+		return res, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
 	}
 
 	return res, nil
@@ -107,6 +107,9 @@ func StopRender(task int64) error {
 func GetStream(streamURL string) ([]StreamResponse, error) {
 	res, err := httpClient.Get(getSDUrl() + streamURL)
 	if err != nil {
+		if res.StatusCode == 425 {
+			return []StreamResponse{}, nil
+		}
 		return nil, err
 	}
 
