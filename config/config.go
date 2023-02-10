@@ -33,7 +33,7 @@ type configStruct struct {
 
 	FrameUrl        string
 	FrameHttpBind   string
-	CountFrameless  bool
+	CountFrameless  bool // TODO: implement
 	LoadingFrameUrl string
 	ErrorFrameUrl   string // TODO: implement
 

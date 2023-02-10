@@ -32,9 +32,7 @@ Default config.json:
 
   "frameurl": "",
   "framehttpbind": ":8080",
-  "countframeless": false,
   "loadingframeurl": "https://c.tenor.com/RVvnVPK-6dcAAAAC/reload-cat.gif",
-  "errorframeurl": "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png",
 
   "defaultprompt": "cat",
   "defaultnegativeprompt": "nsfw",

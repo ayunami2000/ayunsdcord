@@ -82,7 +82,7 @@ func frame(cmdctx *command.CommandContext, oldMessage *discord.Message, reader i
 		ext = "png"
 	}
 
-	if config.Config.FrameUrl != "" {
+	if step != totalSteps && config.Config.FrameUrl != "" {
 		body, err := io.ReadAll(reader)
 		if err != nil {
 			return nil, err

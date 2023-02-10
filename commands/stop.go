@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/ayunami2000/ayunsdcord/commands/command"
+	"github.com/ayunami2000/ayunsdcord/config"
 	"github.com/ayunami2000/ayunsdcord/sdapi"
 )
 
@@ -12,6 +13,10 @@ var ErrRenderNotRequestedByYou = errors.New("current render not requested by you
 var StopCommand = command.NewCommand("stop", []string{"s"}, stopRun)
 
 func stopRun(cmdctx *command.CommandContext) error {
+	if !config.CanChange_NoLock("stop") {
+		return ErrCannotChangeProperty
+	}
+
 	if !cmdctx.ChannelSettings.InUse.Load() {
 		return ErrRenderNotInProgress
 	}

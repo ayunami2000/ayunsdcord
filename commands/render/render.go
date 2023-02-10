@@ -102,11 +102,6 @@ func Run(cmdctx *command.CommandContext) error {
 		Task:         task,
 	}
 	cmdctx.ChannelSettings.CurrentRenderInfoMutex.Unlock()
-	defer func() {
-		cmdctx.ChannelSettings.CurrentRenderInfoMutex.Lock()
-		cmdctx.ChannelSettings.CurrentRenderInfo = nil
-		cmdctx.ChannelSettings.CurrentRenderInfoMutex.Unlock()
-	}()
 
 	for currentStep < totalSteps {
 		responses, err := sdapi.GetStream(streamurl)
@@ -121,6 +116,10 @@ func Run(cmdctx *command.CommandContext) error {
 					return fmt.Errorf("received error from stable diffusion: %s", response.Status)
 				}
 
+				if response.Step > currentStep {
+					currentStep = response.Step
+				}
+
 				continue
 			}
 
@@ -130,7 +129,7 @@ func Run(cmdctx *command.CommandContext) error {
 				break
 			}
 
-			if response.Step <= uint(currentStep) {
+			if response.Step <= currentStep {
 				continue
 			}
 
@@ -139,6 +138,10 @@ func Run(cmdctx *command.CommandContext) error {
 		}
 
 		if currentResponse == nil {
+			if !config.Config.StreamImageProgress {
+				_ = frameEmbed(cmdctx, msg, "", currentStep, totalSteps, false)
+			}
+
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -163,11 +166,6 @@ func Run(cmdctx *command.CommandContext) error {
 				_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("Failed to upload image: %v", err))
 			}
 
-			continue
-		}
-
-		if config.Config.CountFrameless {
-			_ = frameEmbed(cmdctx, msg, "", currentStep, totalSteps, false)
 			continue
 		}
 
