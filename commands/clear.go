@@ -44,7 +44,7 @@ func clearCommandRun(cmdctx *command.CommandContext) error {
 	}
 
 	if err := config.CanChange(cmdctx.ChannelSettings.InUse, cmdctx.Args); err != nil {
-		return ErrCannotChangeProperty
+		return err
 	}
 
 	config.ConfigMutex.Lock()
