@@ -22,6 +22,8 @@ func frameEmbed(cmdctx *command.CommandContext, oldMessage *discord.Message, url
 	footer := fmt.Sprintf("Step %d of %d", step, totalSteps)
 	if step >= totalSteps {
 		footer = "Done!"
+	} else if step == 0 && totalSteps == 0 {
+		footer = "Error."
 	}
 
 	if url != "" {

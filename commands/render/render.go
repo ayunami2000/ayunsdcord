@@ -96,7 +96,8 @@ func Run(cmdctx *command.CommandContext) error {
 	currentStep := uint(0)
 	config.ConfigMutex.Lock()
 	totalSteps := config.Config.DefaultInferenceSteps
-	streamImageProgress := config.Config.StreamImageProgress
+	countFrameless := config.Config.CountFrameless
+	errorFrameUrl := config.Config.ErrorFrameUrl
 	stillTyping := true
 
 	cmdctx.ChannelSettings.CurrentRenderInfoMutex.Lock()
@@ -118,11 +119,15 @@ func Run(cmdctx *command.CommandContext) error {
 		for _, response := range responses {
 			if len(response.Output) < 1 || (response.Output[0].Data == "" && response.Output[0].Path == "") {
 				if response.Status != "" && response.Status != "succeeded" {
-					return fmt.Errorf("received error from stable diffusion: %s", response.Status)
+					_ = frameEmbed(cmdctx, msg, errorFrameUrl, 0, 0, data.InitImage != "")
+					return fmt.Errorf("**Error:** Received error from stable diffusion: %s", response.Status)
 				}
 
 				if response.Step > currentStep {
 					currentStep = response.Step
+					if countFrameless {
+						_ = frameEmbed(cmdctx, msg, "", currentStep, totalSteps, data.InitImage != "")
+					}
 				}
 
 				continue
@@ -143,10 +148,6 @@ func Run(cmdctx *command.CommandContext) error {
 		}
 
 		if currentResponse == nil {
-			if !streamImageProgress {
-				_ = frameEmbed(cmdctx, msg, "", currentStep, totalSteps, false)
-			}
-
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -168,7 +169,7 @@ func Run(cmdctx *command.CommandContext) error {
 			}
 
 			if err != nil {
-				_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("Failed to upload image: %v", err))
+				_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("**Error:** Failed to upload image: %v", err))
 			}
 
 			continue
@@ -176,7 +177,7 @@ func Run(cmdctx *command.CommandContext) error {
 
 		image, err := sdapi.GetImage(currentResponse.Output[0].Path)
 		if err != nil {
-			_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("Failed to get image: %v", err))
+			_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("**Error:** Failed to get image: %v", err))
 			continue
 		}
 
@@ -188,7 +189,7 @@ func Run(cmdctx *command.CommandContext) error {
 		currentFrame = f
 
 		if err != nil {
-			_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("Failed to upload image: %v", err))
+			_, _ = cmdctx.Executor.EditMessage(msg.ChannelID, msg.ID, fmt.Sprintf("**Error:** Failed to upload image: %v", err))
 		}
 	}
 

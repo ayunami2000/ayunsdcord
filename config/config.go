@@ -14,7 +14,7 @@ import (
 )
 
 var ErrCannotChangeProperty = errors.New("not allowed to change property")
-var ErrPropertyLocked = errors.New("property is locked")
+var ErrPropertyLocked = errors.New("locked while rendering")
 var imageDumpChannelId = discord.NullChannelID
 
 type UsersList struct {
@@ -35,9 +35,9 @@ type configStruct struct {
 
 	FrameUrl        string
 	FrameHttpBind   string
-	CountFrameless  bool // TODO: implement
+	CountFrameless  bool
 	LoadingFrameUrl string
-	ErrorFrameUrl   string // TODO: implement
+	ErrorFrameUrl   string
 
 	DefaultPrompt         string
 	DefaultNegativePrompt string
@@ -66,11 +66,14 @@ func init() {
 
 	viper.SetDefault("Prefix", "sd!")
 	viper.SetDefault("ChannelIds", []string{})
+	viper.SetDefault("AllowBots", false)
 
 	viper.SetDefault("StableDiffusionURL", "http://localhost:9000")
 	viper.SetDefault("StreamImageProgress", true)
+	viper.SetDefault("CountFrameless", false)
 
 	viper.SetDefault("FrameHttpBind", ":8080")
+	viper.SetDefault("FrameUrl", "")
 	viper.SetDefault("LoadingFrameUrl", "https://c.tenor.com/RVvnVPK-6dcAAAAC/reload-cat.gif")
 	viper.SetDefault("ErrorFrameUrl", "https://upload.wikimedia.org/wikipedia/commons/f/f7/Generic_error_message.png")
 
@@ -86,23 +89,24 @@ func init() {
 	viper.SetDefault("DefaultUpscaleAmount", 2)
 
 	viper.SetDefault("DenyChanging", []string{})
+	viper.SetDefault("UsersList.WhitelistMode", false)
 	viper.SetDefault("UsersList.List", []string{})
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			log.Fatalf("unable to open config file: %v\n", err)
+			log.Fatalf("Unable to open config file: %v\n", err)
 		}
 	} else {
 		if err := viper.WriteConfig(); err != nil {
 			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-				log.Fatalf("unable to write to config file: %v\n", err)
+				log.Fatalf("Unable to write to config file: %v\n", err)
 			}
 		}
 	}
 
 	err := viper.Unmarshal(&Config)
 	if err != nil {
-		log.Fatalf("unable to decode config: %v\n", err)
+		log.Fatalf("Unable to decode config: %v\n", err)
 	}
 
 	viper.WatchConfig()
@@ -113,7 +117,7 @@ func init() {
 			ConfigMutex.Lock()
 			Config = newConfig
 			ConfigMutex.Unlock()
-			log.Println("successfully updated config")
+			log.Println("Successfully updated config")
 		}
 	})
 }

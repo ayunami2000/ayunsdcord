@@ -149,7 +149,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	}()
 
 	if err := executor.RunCommand(cmd, &context); err != nil {
-		_, _ = context.TryReply("**Error:** %v", err)
+		str := err.Error()
+		_, _ = context.TryReply("**Error:** %s.", strings.ToUpper(str[:1])+str[1:])
 	}
 }
 
