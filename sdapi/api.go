@@ -21,25 +21,35 @@ var httpClient = http.Client{
 
 type httpTransport struct{}
 
+func getSDUrl() string {
+	config.ConfigMutex.Lock()
+	stableDiffusionURL := config.Config.StableDiffusionURL
+	config.ConfigMutex.Unlock()
+
+	return stableDiffusionURL
+}
+
 func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	config.ConfigMutex.Lock()
 	if config.Config.BasicAuth != "" {
 		req.Header.Set("Authorization", "Basic "+config.Config.BasicAuth)
 	}
+	config.ConfigMutex.Unlock()
 
 	res, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		return res, err
+		return nil, err
 	}
 
 	if res.StatusCode >= 400 {
-		return res, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
+		return nil, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
 	}
 
 	return res, nil
 }
 
 func GetModels() (*ModelsResponse, error) {
-	res, err := httpClient.Get(config.Config.StableDiffusionURL + "/get/models")
+	res, err := httpClient.Get(getSDUrl() + "/get/models")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +64,7 @@ func GetModels() (*ModelsResponse, error) {
 }
 
 func GetAppConfig() (*AppConfigResponse, error) {
-	res, err := httpClient.Get(config.Config.StableDiffusionURL + "/get/app_config")
+	res, err := httpClient.Get(getSDUrl() + "/get/app_config")
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +82,7 @@ func Render(data *RenderData) (string, int64, error) {
 		return "", 0, err
 	}
 
-	res, err := httpClient.Post(config.Config.StableDiffusionURL+"/render", "application/json", &buf)
+	res, err := httpClient.Post(getSDUrl()+"/render", "application/json", &buf)
 	if err != nil {
 		return "", 0, err
 	}
@@ -85,7 +95,7 @@ func Render(data *RenderData) (string, int64, error) {
 }
 
 func StopRender(task int64) error {
-	res, err := httpClient.Get(config.Config.StableDiffusionURL + "/image/stop?task=" + strconv.FormatInt(task, 10))
+	res, err := httpClient.Get(getSDUrl() + "/image/stop?task=" + strconv.FormatInt(task, 10))
 	if err != nil {
 		return err
 	}
@@ -95,7 +105,7 @@ func StopRender(task int64) error {
 }
 
 func GetStream(streamURL string) ([]StreamResponse, error) {
-	res, err := httpClient.Get(config.Config.StableDiffusionURL + streamURL)
+	res, err := httpClient.Get(getSDUrl() + streamURL)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +129,7 @@ func GetStream(streamURL string) ([]StreamResponse, error) {
 }
 
 func GetImage(path string) (io.ReadCloser, error) {
-	res, err := httpClient.Get(config.Config.StableDiffusionURL + path)
+	res, err := httpClient.Get(getSDUrl() + path)
 	if err != nil {
 		return nil, err
 	}

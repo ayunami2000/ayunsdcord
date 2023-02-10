@@ -47,6 +47,7 @@ func clearCommandRun(cmdctx *command.CommandContext) error {
 		return ErrCannotChangeProperty
 	}
 
+	config.ConfigMutex.Lock()
 	switch mappedArg {
 	case "prompt":
 		cmdctx.ChannelSettings.Prompt = ""
@@ -70,9 +71,11 @@ func clearCommandRun(cmdctx *command.CommandContext) error {
 	case "upscaleamount":
 		cmdctx.ChannelSettings.UpscaleAmount = 0
 	default:
+		config.ConfigMutex.Unlock()
 		return ErrInvalidProperty
 	}
+	config.ConfigMutex.Unlock()
 
-	_, err := cmdctx.TryReply("Successfully cleared property")
+	_, err := cmdctx.TryReply("**Successfully cleared property**")
 	return err
 }

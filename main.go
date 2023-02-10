@@ -25,11 +25,14 @@ import (
 )
 
 func canUse(authorId string) bool {
+	config.ConfigMutex.Lock()
+	defer config.ConfigMutex.Unlock()
 	for _, id := range config.Config.UsersList.List {
 		if id == authorId {
 			return config.Config.UsersList.WhitelistMode
 		}
 	}
+
 	return !config.Config.UsersList.WhitelistMode
 }
 
@@ -45,7 +48,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
-	if c.Author.Bot && !config.Config.AllowBots {
+	config.ConfigMutex.Lock()
+	allowbots := config.Config.AllowBots
+	config.ConfigMutex.Unlock()
+
+	if c.Author.Bot && !allowbots {
 		return
 	}
 
@@ -58,7 +65,9 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		return
 	}
 
+	config.ConfigMutex.Lock()
 	prefix := config.Config.Prefix
+	config.ConfigMutex.Unlock()
 	if strings.HasPrefix(c.Content, botID.Mention()) {
 		prefix = botID.Mention()
 	}
@@ -76,6 +85,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	settings, settingsInit := channels[c.ChannelID.String()]
 
 	if !settingsInit {
+		config.ConfigMutex.Lock()
 		settings = &command.ChannelSettings{
 			Prompt:         config.Config.DefaultPrompt,
 			NegativePrompt: config.Config.DefaultNegativePrompt,
@@ -89,12 +99,13 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			SessionID:      strconv.Itoa(rand.Int()),
 			InUse:          &atomic.Bool{},
 		}
+		config.ConfigMutex.Unlock()
 
 		if appConfig == nil {
 			var err error
 			appConfig, err = sdapi.GetAppConfig()
 			if err != nil {
-				_, _ = s.SendMessageReply(c.ChannelID, fmt.Sprintf("Error executing command: %v", err), c.ID)
+				_, _ = s.SendMessageReply(c.ChannelID, fmt.Sprintf("**Error:** %v", err), c.ID)
 				log.Println("Could not query app config:", err)
 				channelsMutex.Unlock()
 				return
@@ -138,7 +149,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 	}()
 
 	if err := executor.RunCommand(cmd, &context); err != nil {
-		_, _ = context.TryReply("Error executing command: %v", err)
+		_, _ = context.TryReply("**Error:** %v", err)
 	}
 }
 
@@ -147,6 +158,7 @@ func init() {
 }
 
 func main() {
+	config.ConfigMutex.Lock()
 	if config.Config.BotToken == "" {
 		log.Fatalln("Missing bot token!")
 	}
@@ -160,6 +172,7 @@ func main() {
 	}
 
 	s = state.New("Bot " + config.Config.BotToken)
+	config.ConfigMutex.Unlock()
 	s.AddHandler(messageCreate)
 	s.AddIntents(gateway.IntentGuildMessages)
 
@@ -195,7 +208,11 @@ func main() {
 
 	log.Println("Started as", self.Username)
 
-	if config.Config.FrameUrl != "" {
+	config.ConfigMutex.Lock()
+	frameUrl := config.Config.FrameUrl
+	config.ConfigMutex.Unlock()
+
+	if frameUrl != "" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			split := strings.SplitN(r.RequestURI, "/", 3)
 			if len(split) < 3 {
@@ -214,10 +231,14 @@ func main() {
 			_, _ = w.Write(channel.CurrentRenderInfo.FrameData)
 		})
 
-		err2 := http.ListenAndServe(config.Config.FrameHttpBind, nil)
+		config.ConfigMutex.Lock()
+		frameHttpBind := config.Config.FrameHttpBind
+		config.ConfigMutex.Unlock()
 
-		if err2 != nil {
-			log.Fatalln("Failed to start webserver:", err2)
+		err = http.ListenAndServe(frameHttpBind, nil)
+
+		if err != nil {
+			log.Fatalln("Failed to start webserver:", err)
 		}
 	}
 

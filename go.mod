@@ -4,12 +4,12 @@ go 1.19
 
 require (
 	github.com/diamondburned/arikawa/v3 v3.2.0
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/spf13/viper v1.15.0
 	github.com/tjarratt/babble v0.0.0-20210505082055-cbca2a4833c1
 )
 
 require (
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gorilla/schema v1.2.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
