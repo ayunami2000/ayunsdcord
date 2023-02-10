@@ -77,6 +77,11 @@ func frame(cmdctx *command.CommandContext, oldMessage *discord.Message, reader i
 		return nil, frameEmbed(cmdctx, oldMessage, "", step, totalSteps, hasInitImage)
 	}
 
+	ext := "jpg"
+	if step == totalSteps {
+		ext = "png"
+	}
+
 	if config.Config.FrameUrl != "" {
 		body, err := io.ReadAll(reader)
 		if err != nil {
@@ -84,17 +89,12 @@ func frame(cmdctx *command.CommandContext, oldMessage *discord.Message, reader i
 		}
 
 		cmdctx.ChannelSettings.CurrentRenderInfo.FrameData = body
-		return nil, frameEmbed(cmdctx, oldMessage, fmt.Sprintf("%s/%s/%d.jpg", config.Config.FrameUrl, oldMessage.ChannelID, time.Now().UnixNano()), step, totalSteps, hasInitImage)
+		return nil, frameEmbed(cmdctx, oldMessage, fmt.Sprintf("%s/%s/%d.%s", config.Config.FrameUrl, oldMessage.ChannelID, time.Now().UnixNano(), ext), step, totalSteps, hasInitImage)
 	}
 
 	dumpChannel := config.GetImageDumpChannelId()
 	if dumpChannel == discord.NullChannelID {
 		dumpChannel = oldMessage.ChannelID
-	}
-
-	ext := "jpg"
-	if step == totalSteps {
-		ext = "png"
 	}
 
 	msg, err := cmdctx.Executor.SendMessageComplex(dumpChannel, api.SendMessageData{
