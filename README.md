@@ -22,7 +22,7 @@ Default config.json:
 {
   "bottoken": "",
   "channelids": [],
-  "imagedumpchannelid": 0,
+  "imagedumpchannelid": "0",
   "prefix": "sd!",
   "allowbots": false,
 
