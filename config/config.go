@@ -113,6 +113,7 @@ func init() {
 			ConfigMutex.Lock()
 			Config = newConfig
 			ConfigMutex.Unlock()
+			log.Println("successfully updated config")
 		}
 	})
 }
