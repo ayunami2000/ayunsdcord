@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ayunami2000/ayunsdcord/commands"
@@ -86,6 +87,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			Upscaler:       config.Config.DefaultUpscaler,
 			UpscaleAmount:  config.Config.DefaultUpscaleAmount,
 			SessionID:      strconv.Itoa(rand.Int()),
+			InUse:          &atomic.Bool{},
 		}
 
 		if appConfig == nil {
