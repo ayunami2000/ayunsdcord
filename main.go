@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,8 +38,7 @@ func canUse(authorId string) bool {
 var s *state.State
 var botID discord.UserID
 var executor *command.Executor
-var channels = make(map[string]*command.ChannelSettings)
-var channelsMutex = sync.Mutex{}
+var channels = utils.NewForgetfulMap[string, *command.ChannelSettings](10 * time.Minute)
 var appConfig *sdapi.AppConfigResponse
 
 func messageCreate(c *gateway.MessageCreateEvent) {
@@ -81,8 +79,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		args = "?"
 	}
 
-	channelsMutex.Lock()
-	settings, settingsInit := channels[c.ChannelID.String()]
+	settings, settingsInit := channels.Get(c.ChannelID.String())
 
 	if !settingsInit {
 		config.ConfigMutex.Lock()
@@ -107,7 +104,6 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			if err != nil {
 				_, _ = s.SendMessageReply(c.ChannelID, fmt.Sprintf("**Error:** %v", err), c.ID)
 				log.Println("Could not query app config:", err)
-				channelsMutex.Unlock()
 				return
 			}
 		}
@@ -116,9 +112,8 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		settings.VAE = appConfig.Model.VAE
 		settings.HyperNetwork = appConfig.Model.HyperNetwork
 
-		channels[c.ChannelID.String()] = settings
+		channels.Set(c.ChannelID.String(), settings)
 	}
-	channelsMutex.Unlock()
 
 	cmd := strings.ToLower(strings.Split(args, " ")[0])
 	args = strings.TrimSpace(args[len(cmd):])
@@ -221,7 +216,7 @@ func main() {
 				return
 			}
 
-			channel, channelInit := channels[split[1]]
+			channel, channelInit := channels.Get(split[1])
 			if !channelInit || channel.CurrentRenderInfo == nil || channel.CurrentRenderInfo.FrameData == nil {
 				w.WriteHeader(404)
 				return

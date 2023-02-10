@@ -42,7 +42,7 @@ func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if res.StatusCode >= 400 && res.StatusCode != 425 {
-		return res, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
+		return nil, fmt.Errorf("%w: %s", ErrResponseCode, res.Status)
 	}
 
 	return res, nil
