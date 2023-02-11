@@ -90,6 +90,7 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 			PromptStrength: config.Config.DefaultPromptStrength,
 			InferenceSteps: config.Config.DefaultInferenceSteps,
 			GuidanceScale:  config.Config.DefaultGuidanceScale,
+			Sampler:        config.Config.DefaultSampler,
 			Upscaler:       config.Config.DefaultUpscaler,
 			UpscaleAmount:  config.Config.DefaultUpscaleAmount,
 			SessionID:      strconv.Itoa(rand.Int()),
