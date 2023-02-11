@@ -95,7 +95,7 @@ func Run(cmdctx *command.CommandContext) error {
 	var currentFrame *discord.Message
 	currentStep := uint(0)
 	config.ConfigMutex.Lock()
-	totalSteps := config.Config.DefaultInferenceSteps
+	totalSteps := cmdctx.ChannelSettings.InferenceSteps
 	countFrameless := config.Config.CountFrameless
 	errorFrameUrl := config.Config.ErrorFrameUrl
 	stillTyping := true
@@ -121,6 +121,10 @@ func Run(cmdctx *command.CommandContext) error {
 				if response.Status != "" && response.Status != "succeeded" {
 					_ = frameEmbed(cmdctx, msg, errorFrameUrl, 0, 0, data.InitImage != "")
 					return fmt.Errorf("**Error:** Received error from stable diffusion: %s", response.Status)
+				}
+
+				if currentResponse.TotalSteps != 0 {
+					totalSteps = currentResponse.TotalSteps
 				}
 
 				if response.Step > currentStep {
