@@ -40,7 +40,8 @@ func frameEmbed(cmdctx *command.CommandContext, oldMessage *discord.Message, url
 **Height**: %d
 **Inference Steps:** %d
 **Guidance Scale:** %g
-**Model:** %s`, settings.Width, settings.Height, settings.InferenceSteps, settings.GuidanceScale, settings.Model)
+**Sampler:** %s
+**Model:** %s`, settings.Width, settings.Height, settings.InferenceSteps, settings.GuidanceScale, settings.Sampler, settings.Model)
 
 	if settings.VAE != "" {
 		desc += fmt.Sprintf("\n**VAE:** %s", settings.VAE)

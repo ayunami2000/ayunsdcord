@@ -185,6 +185,7 @@ func main() {
 	executor.RegisterCommand(commands.NegativePromptCommand)
 	executor.RegisterCommand(commands.PromptCommand)
 	executor.RegisterCommand(commands.PromptStrengthCommand)
+	executor.RegisterCommand(commands.SamplerCommand)
 	executor.RegisterCommand(commands.RandomCommand)
 	executor.RegisterCommand(render.RenderCommand)
 	executor.RegisterCommand(commands.SizeCommand)

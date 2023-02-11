@@ -33,6 +33,7 @@ type ChannelSettings struct {
 	PromptStrength float64
 	InferenceSteps uint
 	GuidanceScale  float64
+	Sampler        string
 	Upscaler       string
 	UpscaleAmount  uint
 

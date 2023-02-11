@@ -48,6 +48,7 @@ type configStruct struct {
 	DefaultPromptStrength float64
 	DefaultInferenceSteps uint
 	DefaultGuidanceScale  float64
+	DefaultSampler        string
 	DefaultUpscaler       string
 	DefaultUpscaleAmount  uint
 
@@ -86,6 +87,7 @@ func init() {
 	viper.SetDefault("DefaultPromptStrength", 0.8)
 	viper.SetDefault("DefaultInferenceSteps", 28)
 	viper.SetDefault("DefaultGuidanceScale", 12.0)
+	viper.SetDefault("DefaultSampler", "euler_a")
 	viper.SetDefault("DefaultUpscaleAmount", 2)
 
 	viper.SetDefault("DenyChanging", []string{})

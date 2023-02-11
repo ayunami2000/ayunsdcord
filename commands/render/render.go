@@ -51,7 +51,7 @@ func Run(cmdctx *command.CommandContext) error {
 		OriginalPrompt:          cmdctx.ChannelSettings.Prompt,
 		ActiveTags:              []string{},
 		InactiveTags:            []string{},
-		SamplerName:             "euler_a", // dpmpp_2m
+		SamplerName:             cmdctx.ChannelSettings.Sampler,
 		SessionId:               cmdctx.ChannelSettings.SessionID,
 		UseVaeModel:             cmdctx.ChannelSettings.VAE,
 		UseHypernetworkModel:    cmdctx.ChannelSettings.HyperNetwork,
