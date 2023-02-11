@@ -38,7 +38,7 @@ func canUse(authorId string) bool {
 var s *state.State
 var botID discord.UserID
 var executor *command.Executor
-var channels = utils.NewForgetfulMap[string, *command.ChannelSettings](10 * time.Minute)
+var channels = utils.NewForgetfulMap[string, *command.ChannelSettings](20 * time.Minute)
 
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
