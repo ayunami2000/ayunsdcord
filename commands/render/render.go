@@ -123,8 +123,8 @@ func Run(cmdctx *command.CommandContext) error {
 					return fmt.Errorf("**Error:** Received error from stable diffusion: %s", response.Status)
 				}
 
-				if currentResponse.TotalSteps != 0 {
-					totalSteps = currentResponse.TotalSteps
+				if response.TotalSteps != 0 {
+					totalSteps = response.TotalSteps
 				}
 
 				if response.Step > currentStep {
