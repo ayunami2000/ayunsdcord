@@ -39,7 +39,6 @@ var s *state.State
 var botID discord.UserID
 var executor *command.Executor
 var channels = utils.NewForgetfulMap[string, *command.ChannelSettings](10 * time.Minute)
-var appConfig *sdapi.AppConfigResponse
 
 func messageCreate(c *gateway.MessageCreateEvent) {
 	if c.Author.ID == botID {
@@ -98,14 +97,11 @@ func messageCreate(c *gateway.MessageCreateEvent) {
 		}
 		config.ConfigMutex.Unlock()
 
-		if appConfig == nil {
-			var err error
-			appConfig, err = sdapi.GetAppConfig()
-			if err != nil {
-				_, _ = s.SendMessageReply(c.ChannelID, fmt.Sprintf("**Error:** %v", err), c.ID)
-				log.Println("Could not query app config:", err)
-				return
-			}
+		appConfig, err := sdapi.GetAppConfig()
+		if err != nil {
+			_, _ = s.SendMessageReply(c.ChannelID, fmt.Sprintf("**Error:** %v", err), c.ID)
+			log.Println("Could not query app config:", err)
+			return
 		}
 
 		settings.Model = appConfig.Model.StableDiffusion
