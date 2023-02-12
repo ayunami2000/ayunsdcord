@@ -15,7 +15,8 @@ var ErrInvalidUpscaler = errors.New("invalid upscaler")
 
 func upscalerRun(cmdctx *command.CommandContext) error {
 	if cmdctx.Args == "" {
-		_, err := cmdctx.TryReply("**Current upscaler:** %s", utils.StringOrNone(cmdctx.ChannelSettings.Upscaler))
+		_, err := cmdctx.TryReply(`**Current upscaler:** %s
+Upscalers: %s`, utils.StringOrNone(cmdctx.ChannelSettings.Upscaler), strings.Join(VALID_SAMPLERS, ", "))
 		return err
 	}
 

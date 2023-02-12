@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/ayunami2000/ayunsdcord/commands/command"
 	"github.com/ayunami2000/ayunsdcord/config"
@@ -15,7 +16,8 @@ var ErrInvalidUpscaleAmount = errors.New("invalid upscale amount")
 
 func upscaleAmountRun(cmdctx *command.CommandContext) error {
 	if cmdctx.Args == "" {
-		_, err := cmdctx.TryReply("**Upscale amount:** %d", cmdctx.ChannelSettings.UpscaleAmount)
+		_, err := cmdctx.TryReply(`**Current upscale amount:** %d
+Upscale amounts: %s`, cmdctx.ChannelSettings.UpscaleAmount, strings.Join(utils.ToStringSlice(VALID_UPSCALE_AMOUNTS), ", "))
 		return err
 	}
 
