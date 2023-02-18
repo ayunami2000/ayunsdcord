@@ -31,7 +31,7 @@ type configStruct struct {
 
 	StableDiffusionURL  string
 	BasicAuth           string
-	StreamImageProgress bool
+	StreamImageProgress uint
 
 	FrameUrl        string
 	FrameHttpBind   string
@@ -70,7 +70,7 @@ func init() {
 	viper.SetDefault("AllowBots", false)
 
 	viper.SetDefault("StableDiffusionURL", "http://localhost:9000")
-	viper.SetDefault("StreamImageProgress", true)
+	viper.SetDefault("StreamImageProgress", 5)
 	viper.SetDefault("CountFrameless", false)
 
 	viper.SetDefault("FrameHttpBind", ":8080")

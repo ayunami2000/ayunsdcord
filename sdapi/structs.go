@@ -30,7 +30,7 @@ type RenderData struct {
 	UseVaeModel             string   `json:"use_vae_model,omitempty"`
 	UseHypernetworkModel    string   `json:"use_hypernetwork_model,omitempty"`
 	StreamProgressUpdates   bool     `json:"stream_progress_updates"`
-	StreamImageProgress     bool     `json:"stream_image_progress"`
+	StreamImageProgress     uint     `json:"stream_image_progress"`
 	ShowOnlyFilteredImage   bool     `json:"show_only_filtered_image"`
 	OutputFormat            string   `json:"output_format"`
 	OutputQuality           uint     `json:"output_quality"`
