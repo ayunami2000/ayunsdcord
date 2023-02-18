@@ -28,7 +28,7 @@ Default config.json:
 
   "stablediffusionurl": "http://localhost:9000",
   "basicauth": "",
-  "streamimageprogress": true,
+  "streamimageprogress": 5,
 
   "frameurl": "",
   "framehttpbind": ":8080",
