@@ -47,16 +47,20 @@ type KoboldHordeRequestParams struct {
 }
 
 type KoboldHordeRequest struct {
-	Prompt  string                   `json:"prompt"`
-	ApiKey  string                   `json:"api_key"`
-	Params  KoboldHordeRequestParams `json:"params"`
-	Servers []string                 `json:"servers"`
-	Models  []string                 `json:"models"`
+	Prompt         string                   `json:"prompt"`
+	Params         KoboldHordeRequestParams `json:"params"`
+	TrustedWorkers bool                     `json:"trusted_workers"`
+	NSFW           bool                     `json:"nsfw"`
 }
 
-type KoboldHordeResponse []struct {
-	Text          string `json:"text"`
-	ServerID      string `json:"server_id"`
-	ServerName    string `json:"server_name"`
-	QueuePosition uint   `json:"queue_position"`
+type KoboldHordeInitialResponse struct {
+	ID string `json:"id"`
+}
+
+type KoboldHordeStatusResponse struct {
+	IsPossible  bool `json:"is_possible"`
+	Done        bool `json:"done"`
+	Generations []struct {
+		Text string `json:"text"`
+	} `json:"generations,omitempty"`
 }
