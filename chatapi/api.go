@@ -258,5 +258,7 @@ func GenerateKoboldHorde(data *KoboldHordeRequest) (string, error) {
 		if resParsed.Done {
 			isDone = true
 		}
+
+		time.Sleep(500 * time.Millisecond)
 	}
 }
