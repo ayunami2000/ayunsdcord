@@ -85,7 +85,6 @@ func Generate(prompt string) (string, error) {
 			Models: []string{
 				"facebook_opt-125m",
 				"facebook/opt-13b",
-				"facebook_opt-1.3b",
 			},
 		})
 	} else {
