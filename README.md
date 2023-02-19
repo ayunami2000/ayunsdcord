@@ -50,6 +50,9 @@ Default config.json:
   "userslist": {
     "whitelistmode": false,
     "list": []
-  }
+  },
+  
+  "koboldenabled": false,
+  "koboldurl": "http://localhost:5000/api/latest/generate"
 }
 ```

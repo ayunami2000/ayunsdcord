@@ -54,6 +54,10 @@ type configStruct struct {
 
 	DenyChanging []string
 	UsersList    UsersList
+
+	KoboldEnabled   bool
+	KoboldURL       string
+	KoboldBasicAuth string
 }
 
 var Config = configStruct{}
@@ -93,6 +97,9 @@ func init() {
 	viper.SetDefault("DenyChanging", []string{})
 	viper.SetDefault("UsersList.WhitelistMode", false)
 	viper.SetDefault("UsersList.List", []string{})
+
+	viper.SetDefault("KoboldEnabled", false)
+	viper.SetDefault("KoboldURL", "http://localhost:5000/api/latest/generate")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
