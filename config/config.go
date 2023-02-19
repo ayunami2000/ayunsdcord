@@ -55,10 +55,11 @@ type configStruct struct {
 	DenyChanging []string
 	UsersList    UsersList
 
-	KoboldEnabled   bool
-	KoboldURL       string
-	KoboldDMOutput  bool
-	KoboldBasicAuth string
+	ChatEnabled  bool
+	ChatURL      string
+	ChatDMOutput bool
+	ChatAPIMode  string
+	ChatAuth     string
 }
 
 var Config = configStruct{}
@@ -99,9 +100,10 @@ func init() {
 	viper.SetDefault("UsersList.WhitelistMode", false)
 	viper.SetDefault("UsersList.List", []string{})
 
-	viper.SetDefault("KoboldEnabled", false)
-	viper.SetDefault("KoboldURL", "http://localhost:5000/api/latest/generate")
-	viper.SetDefault("KoboldDMOutput", false)
+	viper.SetDefault("ChatEnabled", false)
+	viper.SetDefault("ChatURL", "http://localhost:5000/api/latest/generate")
+	viper.SetDefault("ChatAPIMode", "kobold")
+	viper.SetDefault("ChatDMOutput", false)
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

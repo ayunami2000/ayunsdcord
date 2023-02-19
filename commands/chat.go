@@ -6,19 +6,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ayunami2000/ayunsdcord/chatapi"
 	"github.com/ayunami2000/ayunsdcord/commands/command"
 	"github.com/ayunami2000/ayunsdcord/config"
-	"github.com/ayunami2000/ayunsdcord/kobold"
 	"github.com/diamondburned/arikawa/v3/discord"
 )
 
-var KoboldCommand = command.NewCommand("kobold", []string{"kb"}, koboldRun)
-var ErrKoboldDisabled = errors.New("kobold is disabled")
-var KoboldLock = sync.Mutex{}
+var ChatCommand = command.NewCommand("chat", []string{"ch"}, chatRun)
+var ErrChatDisabled = errors.New("chat is disabled")
+var ChatLock = sync.Mutex{}
 
-func koboldRun(cmdctx *command.CommandContext) error {
-	if !config.Config.KoboldEnabled {
-		return ErrKoboldDisabled
+func chatRun(cmdctx *command.CommandContext) error {
+	if !config.Config.ChatEnabled {
+		return ErrChatDisabled
 	}
 
 	if cmdctx.Args == "" {
@@ -26,27 +26,27 @@ func koboldRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
-	if !KoboldLock.TryLock() {
-		_, err := cmdctx.TryReply("**Kobold is busy, please wait a few seconds!**")
+	if !ChatLock.TryLock() {
+		_, err := cmdctx.TryReply("**Chat is busy, please wait a few seconds!**")
 		return err
 	}
-	defer KoboldLock.Unlock()
+	defer ChatLock.Unlock()
 	config.ConfigMutex.Lock()
-	koboldDM := config.Config.KoboldDMOutput
+	chatDM := config.Config.ChatDMOutput
 	config.ConfigMutex.Unlock()
 
 	chID := discord.ChannelID(0)
 	msgID := discord.MessageID(0)
 
-	if koboldDM {
-		_, _ = cmdctx.TryReply("**Kobold will direct message the response to the sender!**")
+	if chatDM {
+		_, _ = cmdctx.TryReply("**Chat will direct message the response to the sender!**")
 		cmdctx.StopTyping <- struct{}{}
 		ch, err := cmdctx.Executor.CreatePrivateChannel(cmdctx.Message.Author.ID)
 		if err != nil {
 			return err
 		}
 		chID = ch.ID
-		msg, err := cmdctx.Executor.SendMessage(chID, ensureLen("**Kobold:** "+cmdctx.Args+" *(Generating...)*"))
+		msg, err := cmdctx.Executor.SendMessage(chID, ensureLen("**Chat:** "+cmdctx.Args+" *(Generating...)*"))
 		if err != nil {
 			return err
 		}
@@ -70,23 +70,17 @@ func koboldRun(cmdctx *command.CommandContext) error {
 		}()
 	}
 
-	data := &kobold.KoboldRequest{
-		Prompt:      cmdctx.Args,
-		Temperature: 0.7,
-		TopP:        1.0,
-	}
-
-	res, err := kobold.Generate(data)
+	res, err := chatapi.Generate(cmdctx.Args)
 	if err != nil {
-		log.Println("Could not query kobold:", err)
+		log.Println("Could not query chat:", err)
 		return err
 	}
 
-	if koboldDM {
-		_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Kobold:** "+cmdctx.Args+res))
+	if chatDM {
+		_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Chat:** "+cmdctx.Args+res))
 		return err
 	} else {
-		_, err = cmdctx.TryReply("**Kobold:** %s%s", cmdctx.Args, res)
+		_, err = cmdctx.TryReply("**Chat:** %s%s", cmdctx.Args, res)
 		return err
 	}
 }

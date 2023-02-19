@@ -52,7 +52,8 @@ Default config.json:
     "list": []
   },
   
-  "koboldenabled": false,
-  "koboldurl": "http://localhost:5000/api/latest/generate"
+  "chatenabled": false,
+  "chaturl": "http://localhost:5000/api/latest/generate",
+  "chatapimode": "kobold"
 }
 ```

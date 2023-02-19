@@ -195,7 +195,7 @@ func main() {
 	executor.RegisterCommand(commands.UpscaleAmountCommand)
 	executor.RegisterCommand(commands.UpscalerCommand)
 	executor.RegisterCommand(commands.VaeCommand)
-	executor.RegisterCommand(commands.KoboldCommand)
+	executor.RegisterCommand(commands.ChatCommand)
 
 	if err := s.Open(context.Background()); err != nil {
 		log.Fatalln("Failed to connect:", err)
