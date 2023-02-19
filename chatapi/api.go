@@ -91,7 +91,6 @@ func Generate(prompt string) (string, error) {
 				Temperature:      0.7,
 				TopP:             1.0,
 			},
-			Models:         []string{},
 			TrustedWorkers: false,
 			NSFW:           false,
 		})
