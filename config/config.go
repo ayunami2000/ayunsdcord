@@ -57,6 +57,7 @@ type configStruct struct {
 
 	KoboldEnabled   bool
 	KoboldURL       string
+	KoboldDMOutput  bool
 	KoboldBasicAuth string
 }
 
@@ -100,6 +101,7 @@ func init() {
 
 	viper.SetDefault("KoboldEnabled", false)
 	viper.SetDefault("KoboldURL", "http://localhost:5000/api/latest/generate")
+	viper.SetDefault("KoboldDMOutput", false)
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

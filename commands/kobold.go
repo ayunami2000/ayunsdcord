@@ -3,10 +3,12 @@ package commands
 import (
 	"errors"
 	"log"
+	"time"
 
 	"github.com/ayunami2000/ayunsdcord/commands/command"
 	"github.com/ayunami2000/ayunsdcord/config"
 	"github.com/ayunami2000/ayunsdcord/kobold"
+	"github.com/diamondburned/arikawa/v3/discord"
 )
 
 var KoboldCommand = command.NewCommand("kobold", []string{"kb"}, koboldRun)
@@ -22,6 +24,45 @@ func koboldRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
+	config.ConfigMutex.Lock()
+	koboldDM := config.Config.KoboldDMOutput
+	config.ConfigMutex.Unlock()
+
+	chID := discord.ChannelID(0)
+	msgID := discord.MessageID(0)
+
+	if koboldDM {
+		_, _ = cmdctx.TryReply("**Kobold will direct message the response to the sender!**")
+		cmdctx.StopTyping <- struct{}{}
+		ch, err := cmdctx.Executor.CreatePrivateChannel(cmdctx.Message.Author.ID)
+		if err != nil {
+			return err
+		}
+		chID = ch.ID
+		msg, err := cmdctx.Executor.SendMessage(chID, ensureLen("**Kobold:** "+cmdctx.Args+" *(Generating...)*"))
+		if err != nil {
+			return err
+		}
+		msgID = msg.ID
+
+		stoptyping := make(chan struct{})
+
+		_ = cmdctx.Executor.Typing(chID)
+		defer close(stoptyping)
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			for {
+				select {
+				case <-ticker.C:
+					_ = cmdctx.Executor.Typing(chID)
+				case <-stoptyping:
+					ticker.Stop()
+					return
+				}
+			}
+		}()
+	}
+
 	data := &kobold.KoboldRequest{
 		Prompt:      cmdctx.Args,
 		Temperature: 0.7,
@@ -34,6 +75,18 @@ func koboldRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
-	_, err = cmdctx.TryReply("**Kobold:** %s", res)
-	return err
+	if koboldDM {
+		_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Kobold:** "+cmdctx.Args+res))
+		return err
+	} else {
+		_, err = cmdctx.TryReply("**Kobold:** %s%s", cmdctx.Args, res)
+		return err
+	}
+}
+
+func ensureLen(str string) string {
+	if len(str) > 2000 {
+		return str[:2000]
+	}
+	return str
 }

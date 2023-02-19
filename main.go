@@ -168,6 +168,7 @@ func main() {
 	config.ConfigMutex.Unlock()
 	s.AddHandler(messageCreate)
 	s.AddIntents(gateway.IntentGuildMessages)
+	s.AddIntents(gateway.IntentDirectMessages)
 
 	self, err := s.Me()
 	if err != nil {
