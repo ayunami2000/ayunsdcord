@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/ayunami2000/ayunsdcord/commands/command"
@@ -13,6 +14,7 @@ import (
 
 var KoboldCommand = command.NewCommand("kobold", []string{"kb"}, koboldRun)
 var ErrKoboldDisabled = errors.New("kobold is disabled")
+var KoboldLock = sync.Mutex{}
 
 func koboldRun(cmdctx *command.CommandContext) error {
 	if !config.Config.KoboldEnabled {
@@ -24,6 +26,11 @@ func koboldRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
+	if !KoboldLock.TryLock() {
+		_, err := cmdctx.TryReply("**Kobold is busy, please wait a few seconds!**")
+		return err
+	}
+	defer KoboldLock.Unlock()
 	config.ConfigMutex.Lock()
 	koboldDM := config.Config.KoboldDMOutput
 	config.ConfigMutex.Unlock()
