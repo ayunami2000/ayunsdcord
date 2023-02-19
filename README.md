@@ -54,6 +54,11 @@ Default config.json:
   
   "chatenabled": false,
   "chaturl": "http://localhost:5000/api/latest/generate",
-  "chatapimode": "kobold"
+  "chatapimode": "kobold",
+  "chatauth": ""
 }
 ```
+
+Chat mode supports: `kobold` (http://localhost:5000/api/latest/generate), `koboldhorde` (https://koboldai.net/api/v1/generate/sync), `together` (https://api.together.xyz/api/inference), `openai` (https://api.openai.com/v1/completions), or fallback to `simple` (http://localhost:8000/generate?input=)
+
+`chatauth` is basic auth EXCEPT for when openai (it is your openai api key) or koboldhorde (it is your kobold horde token)

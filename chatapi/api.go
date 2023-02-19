@@ -27,7 +27,7 @@ func (t *httpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if config.Config.ChatAuth != "" {
 		if strings.EqualFold(config.Config.ChatAPIMode, "openai") {
 			req.Header.Set("Authorization", "Bearer "+config.Config.ChatAuth)
-		} else {
+		} else if !strings.EqualFold(config.Config.ChatAPIMode, "koboldhorde") {
 			req.Header.Set("Authorization", "Basic "+config.Config.ChatAuth)
 		}
 	}
@@ -68,6 +68,25 @@ func Generate(prompt string) (string, error) {
 			FrequencyPenalty: 0.0,
 			PresencePenalty:  0.0,
 			User:             "https://github.com/ayunami2000/ayunsdcord",
+		})
+	} else if strings.EqualFold(chatMode, "koboldhorde") {
+		return GenerateKoboldHorde(&KoboldHordeRequest{
+			Prompt: prompt,
+			ApiKey: "0000000000",
+			Params: KoboldHordeRequestParams{
+				N:                1,
+				MaxContextLength: 1024,
+				MaxLength:        256,
+				RepPen:           1.0,
+				Temperature:      0.7,
+				TopP:             1.0,
+			},
+			Servers: []string{},
+			Models: []string{
+				"facebook_opt-125m",
+				"facebook/opt-13b",
+				"facebook_opt-1.3b",
+			},
 		})
 	} else {
 		return GenerateSimple(prompt)
@@ -168,4 +187,36 @@ func GenerateSimple(prompt string) (string, error) {
 	}
 
 	return string(b), err
+}
+
+func GenerateKoboldHorde(data *KoboldHordeRequest) (string, error) {
+	config.ConfigMutex.Lock()
+	if config.Config.ChatAuth != "" {
+		data.ApiKey = config.Config.ChatAuth
+	}
+	config.ConfigMutex.Unlock()
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(data); err != nil {
+		return "", err
+	}
+
+	config.ConfigMutex.Lock()
+	chatURL := config.Config.ChatURL
+	config.ConfigMutex.Unlock()
+
+	res, err := httpClient.Post(chatURL, "application/json", &buf)
+	if err != nil {
+		return "", err
+	}
+
+	defer res.Body.Close()
+
+	var resParsed KoboldHordeResponse
+	err = json.NewDecoder(res.Body).Decode(&resParsed)
+
+	if err != nil || len(resParsed) < 1 {
+		return "", err
+	}
+
+	return resParsed[0].Text, err
 }

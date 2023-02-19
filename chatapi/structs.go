@@ -36,3 +36,27 @@ type OpenAIResponse struct {
 		Text string `json:"text"`
 	} `json:"choices"`
 }
+
+type KoboldHordeRequestParams struct {
+	N                uint    `json:"n"`
+	MaxContextLength uint    `json:"max_context_length"`
+	MaxLength        uint    `json:"max_length"`
+	RepPen           float64 `json:"rep_pen"`
+	Temperature      float64 `json:"temperature"`
+	TopP             float64 `json:"top_p"`
+}
+
+type KoboldHordeRequest struct {
+	Prompt  string                   `json:"prompt"`
+	ApiKey  string                   `json:"api_key"`
+	Params  KoboldHordeRequestParams `json:"params"`
+	Servers []string                 `json:"servers"`
+	Models  []string                 `json:"models"`
+}
+
+type KoboldHordeResponse []struct {
+	Text          string `json:"text"`
+	ServerID      string `json:"server_id"`
+	ServerName    string `json:"server_name"`
+	QueuePosition uint   `json:"queue_position"`
+}

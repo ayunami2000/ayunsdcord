@@ -68,6 +68,13 @@ func chatRun(cmdctx *command.CommandContext) error {
 				}
 			}
 		}()
+	} else {
+		msg, err := cmdctx.TryReply("**Chat:** " + cmdctx.Args + " *(Generating...)*")
+		if err != nil {
+			return err
+		}
+		chID = msg.ChannelID
+		msgID = msg.ID
 	}
 
 	res, err := chatapi.Generate(cmdctx.Args)
@@ -76,13 +83,8 @@ func chatRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
-	if chatDM {
-		_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Chat:** "+cmdctx.Args+res))
-		return err
-	} else {
-		_, err = cmdctx.TryReply("**Chat:** %s%s", cmdctx.Args, res)
-		return err
-	}
+	_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Chat:** "+cmdctx.Args+res))
+	return err
 }
 
 func ensureLen(str string) string {
