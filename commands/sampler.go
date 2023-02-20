@@ -8,7 +8,7 @@ import (
 	"github.com/ayunami2000/ayunsdcord/config"
 )
 
-var VALID_SAMPLERS = []string{"ddim", "plms", "heun", "euler", "euler_a", "dpm2", "dpm2_a", "lms", "dpm_solver_stability", "dpmpp_2s_a", "dpmpp_2m", "dpmpp_sde", "dpm_fast", "dpm_adaptive"}
+var VALID_SAMPLERS = []string{"plms", "ddim", "heun", "euler", "euler_a", "dpm2", "dpm2_a", "lms", "dpm_solver_stability", "dpmpp_2s_a", "dpmpp_2m", "dpmpp_sde", "dpm_fast", "dpm_adaptive", "unipc_snr", "unipc_tu", "unipc_snr_2", "unipc_tu_2", "unipc_tq"}
 var SamplerCommand = command.NewCommand("sampler", []string{"sm"}, samplerCommandRun)
 var ErrInvalidSampler = errors.New("invalid sampler")
 
