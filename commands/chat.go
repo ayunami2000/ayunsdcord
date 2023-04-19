@@ -46,7 +46,7 @@ func chatRun(cmdctx *command.CommandContext) error {
 			return err
 		}
 		chID = ch.ID
-		msg, err := cmdctx.Executor.SendMessage(chID, ensureLen("**Chat:** "+cmdctx.Args+" *(Generating...)*"))
+		msg, err := cmdctx.Executor.SendMessage(chID, ensureLen("*(Generating...)*"))
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func chatRun(cmdctx *command.CommandContext) error {
 			}
 		}()
 	} else {
-		msg, err := cmdctx.TryReply("**Chat:** " + cmdctx.Args + " *(Generating...)*")
+		msg, err := cmdctx.TryReply("*(Generating...)*")
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func chatRun(cmdctx *command.CommandContext) error {
 		return err
 	}
 
-	_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen("**Chat:** "+cmdctx.Args+res))
+	_, err = cmdctx.Executor.EditMessage(chID, msgID, ensureLen(res))
 	return err
 }
 
